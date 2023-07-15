@@ -9,6 +9,15 @@ body {
   line-height: 1.5;
 }
 
+.container {
+  max-width: 80vw;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .light-mode {
   background-color: #f2f2f2;
   color: #333;
@@ -102,10 +111,11 @@ button {
 }
 
 .profile img {
-  width: 400px;
-  height: 400px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1/1;
+  object-fit: cover;
   border-radius: 50%;
-  margin-bottom: 20px;
 }
 
 .profile-section h1 {
@@ -118,6 +128,7 @@ button {
 .profile_picture {
   max-width: 100%;
   height: auto;
+  aspect-ratio: 1/1;
   object-fit: cover;
   border-radius: 50%;
 }
@@ -155,17 +166,17 @@ button {
 }
 
 @media (max-width: 768px) {
-  .profile-picture {
+/*  .profile-picture {
     width: 200px;
     height: 200px;
-  }
+  }*/
 }
 
 @media (max-width: 480px) {
-  .profile-picture {
+/*  .profile-picture {
     width: 150px;
     height: 150px;
-  }
+  }*/
 }
 
 .about-me {
