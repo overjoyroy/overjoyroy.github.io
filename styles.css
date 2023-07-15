@@ -88,7 +88,9 @@ button {
 
 
 #about {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-gap: 20px;
 }
 
 .profile {
@@ -97,7 +99,6 @@ button {
   align-items: center;
   flex-direction: column;
   text-align: center;
-  margin-right: 40px;
 }
 
 .profile img {
@@ -115,8 +116,8 @@ button {
 
 
 .profile_picture {
-  width: 400px;
-  height: 400px;
+  max-width: 100%;
+  height: auto;
   object-fit: cover;
   border-radius: 50%;
 }
@@ -138,6 +139,20 @@ button {
   margin-bottom: 3px;
 }
 
+
+@media (min-width: 768px) {
+  #about {
+    grid-template-columns: 1fr 2fr;
+  }
+  
+  .profile {
+    order: 1;
+  }
+  
+  .about-me {
+    order: 2;
+  }
+}
 
 @media (max-width: 768px) {
   .profile-picture {
