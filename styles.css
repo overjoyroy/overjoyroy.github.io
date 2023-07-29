@@ -49,10 +49,25 @@ nav ul {
   padding: 0;
   background-color: white;
   overflow: hidden;
+  display: flex; /* Adding flexbox to center items horizontally */
+  justify-content: center; /* Horizontally center the items */
 }
 
 nav ul li {
   float: left;
+/*  margin-right: 20px;  Add some spacing between navigation items */
+}
+
+
+/* Style the home link */
+nav ul li:first-child {
+  font-size: 1.2rem; /* Adjust the size as needed */
+  font-weight: 600; /* Make it bold */
+  line-height: 1; /* Ensure proper vertical alignment */
+}
+
+nav ul li:last-child {
+  margin-right: 0; /* Remove spacing from the last item */
 }
 
 nav ul li a {
@@ -132,6 +147,7 @@ button {
   aspect-ratio: 1/1;
   object-fit: cover;
   border-radius: 50%;
+  overflow: hidden;
 }
 
 
@@ -167,10 +183,15 @@ button {
 }
 
 @media (max-width: 768px) {
-/*  .profile-picture {
-    width: 200px;
-    height: 200px;
-  }*/
+  /* Styles for mobile devices (less than 768px width) */
+  nav ul li {
+    display: none; /* Hide all list items on mobile */
+  }
+
+  /* Show only the first list item on mobile */
+  nav ul li:first-child {
+    display: block;
+  }
 }
 
 @media (max-width: 480px) {
