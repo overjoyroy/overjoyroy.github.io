@@ -228,6 +228,36 @@ button {
   flex: 2;
 }
 
+/* Social media links styles */
+.social-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 10px;
+}
+
+.social-links a {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--text-color);
+  border-radius: 50%;
+  font-size: 2rem;
+  text-decoration: none;
+}
+
+/* Adjust icon colors for specific social media links */
+.twitter-link {
+  background-color: #1DA1F2;
+}
+
+.linkedin-link {
+  background-color: #0077B5;
+}
+
 .school {
   font-size: 1rem;
   color: #888;
