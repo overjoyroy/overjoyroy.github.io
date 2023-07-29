@@ -249,6 +249,11 @@ button {
   text-decoration: none;
 }
 
+.social-links a i{
+  color: var(--text-color);
+  font-size: 2rem;
+}
+
 /* Adjust icon colors for specific social media links */
 .twitter-link {
   background-color: #1DA1F2;
