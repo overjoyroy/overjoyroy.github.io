@@ -150,20 +150,6 @@ button {
   text-align: center;
 }
 
-.profile img {
-  max-width: 100%;
-  height: auto;
-  aspect-ratio: 1/1;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-.profile-section h1 {
-  font-size: 24px;
-  color: var(--text-color);
-  margin: 0;
-}
-
 
 .profile_picture {
   max-width: 100%;
@@ -253,15 +239,6 @@ button {
 .social-links a i{
   color: var(--text-color);
   font-size: 2rem;
-}
-
-/* Adjust icon colors for specific social media links */
-.twitter-link {
-  background-color: #1DA1F2;
-}
-
-.linkedin-link {
-  background-color: #0077B5;
 }
 
 .school {
