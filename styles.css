@@ -257,6 +257,10 @@ footer p{
   font-size: 0.9rem;
 }
 
+footer a{
+  color:  #888;
+}
+
 h1,h2,h3,h4,h5,h6 {
     font-family: montserrat,sans-serif;
     font-weight: 400;
