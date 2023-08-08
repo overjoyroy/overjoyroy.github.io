@@ -16,7 +16,14 @@ darkModeQuery.addListener(toggleDarkMode);
 toggleDarkMode(darkModeQuery);
 
 
-
-
+// Function to smooth scroll to navbar elements
+function scrollToSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  if (section) {
+    section.scrollIntoView({
+      behavior: 'smooth'
+    });
+  }
+}
 
 
