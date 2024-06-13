@@ -13,7 +13,7 @@ Before matriculating, I worked as a full time software engineer in the telecommu
 
 # Education 
 :mortar_board: **PhD in Biomedical Informatics**, 2020-2024, <span class="grey">University of Pittsburgh School of Medicine</span> \
-:mortar_board: **BS in Bioinformatics and Computational Biology**, 2015-2019, <span class="grey">University of Maryland Baltimore County</span> \ 
+:mortar_board: **BS in Bioinformatics and Computational Biology**, 2015-2019, <span class="grey">University of Maryland Baltimore County</span> \
 :mortar_board: **BA in Mathematics**, 2015-2019, <span class="grey">University of Maryland Baltimore County</span>
 
 # News
