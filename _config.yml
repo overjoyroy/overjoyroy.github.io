@@ -24,31 +24,31 @@ author:
   avatar           : "joy_headshot.png"
   name             : "Joy Roy"
   pronouns         : # example: "she/her"  
-  bio              : "PhD Candidate at PittMed"
-  location         : "Washington DC Baltimore Area"
+  bio              : "Biomedical Informatics PhD Candidate at The University of Pittsburgh School of Medicine"
+  location         : "Washington-DC Baltimore Area"
   employer         : "PittMed"
   uri              : # URL
   email            : "jor115@pitt.edu" 
 
   # Academic websites
   arxiv            : # URL - Update with the correct link to your profile
-  googlescholar    : "https://scholar.google.com/citations?user=PS_CX0AAAAAJ"
+  googlescholar    : "https://scholar.google.com/citations?user=3BqRxAIAAAAJ"
   impactstory      : # URL
-  orcid            : "http://orcid.org/yourorcidurl"
+  orcid            : "http://orcid.org/0000-0002-0931-7253"
   semantic         : # URL
-  pubmed           : "https://www.ncbi.nlm.nih.gov/pubmed/?term=john+snow"
+  pubmed           : # "https://www.ncbi.nlm.nih.gov/pubmed/?term=john+snow"
   researchgate     : # URL
 
   # Repositories and software development
   bitbucket        : # Username - Update with your username on the site
   codepen          : # Username
   dribbble         : # Username
-  github           : "academicpages"
+  github           : "overjoyroy"
   kaggle           : # Username  
   stackoverflow    : # User number or user number and name (i.e., use "1" or "1/jeff-atwood")    
 
   # Social media
-  bluesky          : "bsky.app" # Replace this with you Bluesky username
+  bluesky          : # "bsky.app" # Replace this with you Bluesky username
   facebook         : # Username
   flickr           : # Username
   foursquare       : # Username
@@ -57,7 +57,7 @@ author:
   keybase          : # Username
   instagram        : # Username
   lastfm           : # Username
-  linkedin         : # Username
+  linkedin         : joy-roy-235b12144
   mastodon         : # URL
   medium           : # URL
   pinterest        : # Username
