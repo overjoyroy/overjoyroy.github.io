@@ -13,12 +13,12 @@ Before matriculating, I worked as a full time software engineer in the telecommu
 
 <a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/cv2023.pdf">Academic CV</a> <a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/resume2023.pdf">Resume</a>
 
-<h1>Research Projects</h1>
-🎓 **PhD in Biomedical Informatics**, 2020-2024, *<span style="color: grey;">University of Pittsburgh School of Medicine</span>* \
+<h2>Education</h2>
+🎓 **PhD in Biomedical Informatics**, 2020-2024, <span style="color: grey;">University of Pittsburgh School of Medicine</span> \
 🎓 **BS in Bioinformatics and Computational Biology**, 2015-2019, <span style="color: grey;">University of Maryland Baltimore County</span> \
 🎓 **BA in Mathematics**, 2015-2019, <span style="color: grey;">University of Maryland Baltimore County</span>
 
-<h1>News</h1>
+<h2>News</h2>
 - [06/2024] I made this website!
 - [06/2024] Joy was invited by the Pittsburgh MR Physicists to present his research for their monthly seminar! 
 - [08/2023] Joy won 2nd place for Best Paper Award from the Department of Biomedical Informatics at Pitt!
