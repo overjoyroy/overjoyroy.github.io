@@ -19,7 +19,8 @@ Before matriculating, I worked as a full time software engineer in the telecommu
 🎓 **BA in Mathematics**, 2015-2019, <span style="color: grey;">University of Maryland Baltimore County</span>
 
 <h2>News</h2>
-- [06/2024] I made this website!
+- [06/2024] My abstract was accepted to present my work on brain network analyses at <a href="https://fluxsociety.org/2024-baltimore/">Flux 2024!</a>
+- [06/2024] This website is now live!
 - [06/2024] Joy was invited by the Pittsburgh MR Physicists to present his research for their monthly seminar! 
 - [08/2023] Joy won 2nd place for Best Paper Award from the Department of Biomedical Informatics at Pitt!
 - [06/2023] Joy won the Bronze Medal Award for his presentation at the NLMT15 Training Conference held in Stanford!
