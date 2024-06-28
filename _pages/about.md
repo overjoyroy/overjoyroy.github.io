@@ -11,7 +11,7 @@ Hi! I'm Joy, and I'm a PhD candidate in Biomedical Informatics at the Unversity 
 
 Before matriculating, I worked as a full time software engineer in the telecommunication and defense sector. Moving forward, I hope to pursue roles that allow me to continue utilizing computer science to make contributions to my communities. Beyond professional pursuits, I am also a big fan of fantasy football, reading, and hiking.
 
-<a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/cv2023.pdf">Academic CV</a> <a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/resume2023.pdf">Resume</a>
+<a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/academic_CV.pdf">Academic CV</a> <a class="btn btn--light--outline btn--info" href="https://joyroy.org/files/Resume.pdf">Resume</a>
 
 <h2>Education</h2>
 🎓 **PhD in Biomedical Informatics**, 2020-2024, <span style="color: grey;">University of Pittsburgh School of Medicine</span> \
