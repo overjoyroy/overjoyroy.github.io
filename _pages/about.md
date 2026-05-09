@@ -17,7 +17,7 @@ Outside of work, I hike, partly to stay active and partly to justify how often I
 
 You can email me at JOR115 {at} pitt {dot} edu. 
 
-<a class="btn btn--light--outline btn--info" href="/files/academic_CV.pdf">Academic CV</a> <a class="btn btn--light--outline btn--info" href="/files/Resume.pdf">Resume</a> 
+<a class="btn btn--info" href="/files/academic_CV.pdf">Academic CV</a> <a class="btn btn--info" href="/files/Resume.pdf">Resume</a>
 
 
 <h2>Outside of Work</h2>
