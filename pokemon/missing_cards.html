@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Missing Pokemon Cards</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f5f5f5;
+    color: #222;
+    padding: 24px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.6rem;
+    margin-bottom: 8px;
+    color: #1a1a2e;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #666;
+    font-size: 0.85rem;
+    margin-bottom: 32px;
+  }
+
+  .set-section {
+    margin-bottom: 40px;
+  }
+
+  .set-header {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    background: #1a1a2e;
+    padding: 8px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .set-count {
+    font-size: 0.8rem;
+    font-weight: 400;
+    opacity: 0.8;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 14px;
+  }
+
+  .card-tile {
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+  }
+
+  .card-tile input[type=checkbox] {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #2ecc71;
+  }
+
+  .card-img {
+    width: 110px;
+    height: auto;
+    border-radius: 6px;
+  }
+
+  .card-img.missing {
+    opacity: 0.4;
+    filter: grayscale(60%);
+  }
+
+  .card-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .card-num {
+    font-size: 0.7rem;
+    color: #888;
+  }
+
+  .card-price {
+    font-size: 0.72rem;
+    color: #2d8a4e;
+    font-weight: 600;
+  }
+
+  /* ── Print styles ── */
+  @media print {
+    body { background: #fff; padding: 10px; }
+    .card-tile { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+    .set-header { background: #333 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card-grid { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    h1, .subtitle { margin-bottom: 12px; }
+    .set-section { margin-bottom: 20px; }
+  }
+</style>
+</head>
+<body>
+<h1>Missing Pokemon Cards</h1>
+<p class="subtitle">Check off cards as you find them &nbsp;·&nbsp; Print or save as PDF to take to card shows</p>
+  <div class="set-section">
+    <div class="set-header">
+      <span>Wizards Black Star Promos</span>
+      <span class="set-count">43 missing</span>
+    </div>
+    <div class="card-grid">
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/5.png" alt="Dragonite" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dragonite_(Wizards_Promo_5)" target="_blank" style="color:inherit;text-decoration:none;">Dragonite</a></span>
+      <span class="card-num">5.0</span>
+      <span class="card-price">~$69.81</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/6.png" alt="Arcanine" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Arcanine_(Wizards_Promo_6)" target="_blank" style="color:inherit;text-decoration:none;">Arcanine</a></span>
+      <span class="card-num">6.0</span>
+      <span class="card-price">~$28.90</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/7.png" alt="Jigglypuff" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Jigglypuff_(Wizards_Promo_7)" target="_blank" style="color:inherit;text-decoration:none;">Jigglypuff</a></span>
+      <span class="card-num">7.0</span>
+      <span class="card-price">~$34.19</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/9.png" alt="Mew" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Mew_(Wizards_Promo_9)" target="_blank" style="color:inherit;text-decoration:none;">Mew</a></span>
+      <span class="card-num">9.0</span>
+      <span class="card-price">~$114.86</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/10.png" alt="Meowth" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Meowth_(Wizards_Promo_10)" target="_blank" style="color:inherit;text-decoration:none;">Meowth</a></span>
+      <span class="card-num">10.0</span>
+      <span class="card-price">~$62.91</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/11.png" alt="Eevee" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Eevee_(Wizards_Promo_11)" target="_blank" style="color:inherit;text-decoration:none;">Eevee</a></span>
+      <span class="card-num">11.0</span>
+      <span class="card-price">~$50.19</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/12.png" alt="Mewtwo" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Mewtwo_(Wizards_Promo_12)" target="_blank" style="color:inherit;text-decoration:none;">Mewtwo</a></span>
+      <span class="card-num">12.0</span>
+      <span class="card-price">~$115.96</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/13.png" alt="Venusaur" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Venusaur_(Wizards_Promo_13)" target="_blank" style="color:inherit;text-decoration:none;">Venusaur</a></span>
+      <span class="card-num">13.0</span>
+      <span class="card-price">~$224.45</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/15.png" alt="Cool Porygon" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Cool_Porygon_(Wizards_Promo_15)" target="_blank" style="color:inherit;text-decoration:none;">Cool Porygon</a></span>
+      <span class="card-num">15.0</span>
+      <span class="card-price">~$87.78</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/17.png" alt="Dark Persian" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Persian_(Wizards_Promo_17)" target="_blank" style="color:inherit;text-decoration:none;">Dark Persian</a></span>
+      <span class="card-num">17.0</span>
+      <span class="card-price">~$100.09</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/18.png" alt="Team Rocket's Meowth" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Team_Rocket%27s_Meowth_(Wizards_Promo_18)" target="_blank" style="color:inherit;text-decoration:none;">Team Rocket's Meowth</a></span>
+      <span class="card-num">18.0</span>
+      <span class="card-price">~$37.10</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/19.png" alt="Sabrina's Abra" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Sabrina%27s_Abra_(Wizards_Promo_19)" target="_blank" style="color:inherit;text-decoration:none;">Sabrina's Abra</a></span>
+      <span class="card-num">19.0</span>
+      <span class="card-price">~$48.32</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/20.png" alt="Psyduck" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Psyduck_(Wizards_Promo_20)" target="_blank" style="color:inherit;text-decoration:none;">Psyduck</a></span>
+      <span class="card-num">20.0</span>
+      <span class="card-price">~$80.68</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/21.png" alt="Moltres" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Moltres_(Wizards_Promo_21)" target="_blank" style="color:inherit;text-decoration:none;">Moltres</a></span>
+      <span class="card-num">21.0</span>
+      <span class="card-price">~$22.08</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/22.png" alt="Articuno" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Articuno_(Wizards_Promo_22)" target="_blank" style="color:inherit;text-decoration:none;">Articuno</a></span>
+      <span class="card-num">22.0</span>
+      <span class="card-price">~$18.87</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/23.png" alt="Zapdos" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Zapdos_(Wizards_Promo_23)" target="_blank" style="color:inherit;text-decoration:none;">Zapdos</a></span>
+      <span class="card-num">23.0</span>
+      <span class="card-price">~$16.61</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/24.png" alt="_____'s Pikachu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/%27s_Pikachu_(Wizards_Promo_24)" target="_blank" style="color:inherit;text-decoration:none;">_____'s Pikachu</a></span>
+      <span class="card-num">24.0</span>
+      <span class="card-price">~$274.67</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/25.png" alt="Flying Pikachu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Flying_Pikachu_(Wizards_Promo_25)" target="_blank" style="color:inherit;text-decoration:none;">Flying Pikachu</a></span>
+      <span class="card-num">25.0</span>
+      <span class="card-price">~$70.62</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/26.png" alt="Pikachu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pikachu_(Wizards_Promo_26)" target="_blank" style="color:inherit;text-decoration:none;">Pikachu</a></span>
+      <span class="card-num">26.0</span>
+      <span class="card-price">~$75.04</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/27.png" alt="Pikachu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pikachu_(Wizards_Promo_27)" target="_blank" style="color:inherit;text-decoration:none;">Pikachu</a></span>
+      <span class="card-num">27.0</span>
+      <span class="card-price">~$25.92</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/28.png" alt="Surfing Pikachu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Surfing_Pikachu_(Wizards_Promo_28)" target="_blank" style="color:inherit;text-decoration:none;">Surfing Pikachu</a></span>
+      <span class="card-num">28.0</span>
+      <span class="card-price">~$57.14</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/30.png" alt="Togepi" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Togepi_(Wizards_Promo_30)" target="_blank" style="color:inherit;text-decoration:none;">Togepi</a></span>
+      <span class="card-num">30.0</span>
+      <span class="card-price">~$23.09</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/31.png" alt="Cleffa" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Cleffa_(Wizards_Promo_31)" target="_blank" style="color:inherit;text-decoration:none;">Cleffa</a></span>
+      <span class="card-num">31.0</span>
+      <span class="card-price">~$17.17</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/32.png" alt="Smeargle" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Smeargle_(Wizards_Promo_32)" target="_blank" style="color:inherit;text-decoration:none;">Smeargle</a></span>
+      <span class="card-num">32.0</span>
+      
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/33.png" alt="Scizor" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Scizor_(Wizards_Promo_33)" target="_blank" style="color:inherit;text-decoration:none;">Scizor</a></span>
+      <span class="card-num">33.0</span>
+      <span class="card-price">~$17.64</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/35.png" alt="Pichu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pichu_(Wizards_Promo_35)" target="_blank" style="color:inherit;text-decoration:none;">Pichu</a></span>
+      <span class="card-num">35.0</span>
+      <span class="card-price">~$58.08</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/36.png" alt="Igglybuff" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Igglybuff_(Wizards_Promo_36)" target="_blank" style="color:inherit;text-decoration:none;">Igglybuff</a></span>
+      <span class="card-num">36.0</span>
+      <span class="card-price">~$14.96</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/37.png" alt="Hitmontop" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Hitmontop_(Wizards_Promo_37)" target="_blank" style="color:inherit;text-decoration:none;">Hitmontop</a></span>
+      <span class="card-num">37.0</span>
+      <span class="card-price">~$10.63</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <div class="card-img missing" style="height:154px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#aaa;">No image</div>
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Unown_J_(Wizards_Promo_38)" target="_blank" style="color:inherit;text-decoration:none;">Unown J</a></span>
+      <span class="card-num">38.0</span>
+      
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/39.png" alt="Misdreavus" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Misdreavus_(Wizards_Promo_39)" target="_blank" style="color:inherit;text-decoration:none;">Misdreavus</a></span>
+      <span class="card-num">39.0</span>
+      <span class="card-price">~$11.02</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/40.png" alt="Pokémon Center" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Center_(Wizards_Promo_40)" target="_blank" style="color:inherit;text-decoration:none;">Pokémon Center</a></span>
+      <span class="card-num">40.0</span>
+      <span class="card-price">~$1108.00</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/41.png" alt="Lucky Stadium" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Lucky_Stadium_(Wizards_Promo_41)" target="_blank" style="color:inherit;text-decoration:none;">Lucky Stadium</a></span>
+      <span class="card-num">41.0</span>
+      <span class="card-price">~$1212.75</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/42.png" alt="Pokémon Tower" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Tower_(Wizards_Promo_42)" target="_blank" style="color:inherit;text-decoration:none;">Pokémon Tower</a></span>
+      <span class="card-num">42.0</span>
+      <span class="card-price">~$13.87</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/43.png" alt="Machamp" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Machamp_(Wizards_Promo_43)" target="_blank" style="color:inherit;text-decoration:none;">Machamp</a></span>
+      <span class="card-num">43.0</span>
+      <span class="card-price">~$58.08</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/44.png" alt="Magmar" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Magmar_(Wizards_Promo_44)" target="_blank" style="color:inherit;text-decoration:none;">Magmar</a></span>
+      <span class="card-num">44.0</span>
+      <span class="card-price">~$31.67</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/45.png" alt="Scyther" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Scyther_(Wizards_Promo_45)" target="_blank" style="color:inherit;text-decoration:none;">Scyther</a></span>
+      <span class="card-num">45.0</span>
+      <span class="card-price">~$43.81</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/46.png" alt="Electabuzz" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Electabuzz_(Wizards_Promo_46)" target="_blank" style="color:inherit;text-decoration:none;">Electabuzz</a></span>
+      <span class="card-num">46.0</span>
+      <span class="card-price">~$41.58</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/47.png" alt="Mew" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Mew_(Wizards_Promo_47)" target="_blank" style="color:inherit;text-decoration:none;">Mew</a></span>
+      <span class="card-num">47.0</span>
+      <span class="card-price">~$132.81</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <div class="card-img missing" style="height:154px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#aaa;">No image</div>
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Snorlax_(Wizards_Promo_49)" target="_blank" style="color:inherit;text-decoration:none;">Snorlax</a></span>
+      <span class="card-num">49.0</span>
+      
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/50.png" alt="Celebi" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Celebi_(Wizards_Promo_50)" target="_blank" style="color:inherit;text-decoration:none;">Celebi</a></span>
+      <span class="card-num">50.0</span>
+      <span class="card-price">~$65.95</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/51.png" alt="Rapidash" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Rapidash_(Wizards_Promo_51)" target="_blank" style="color:inherit;text-decoration:none;">Rapidash</a></span>
+      <span class="card-num">51.0</span>
+      <span class="card-price">~$41.50</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/52.png" alt="Ho-Oh" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Ho-Oh_(Wizards_Promo_52)" target="_blank" style="color:inherit;text-decoration:none;">Ho-Oh</a></span>
+      <span class="card-num">52.0</span>
+      <span class="card-price">~$46.21</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/basep/53.png" alt="Suicune" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Suicune_(Wizards_Promo_53)" target="_blank" style="color:inherit;text-decoration:none;">Suicune</a></span>
+      <span class="card-num">53.0</span>
+      <span class="card-price">~$49.52</span>
+    </div>
+    </div>
+  </div>
+
+  <div class="set-section">
+    <div class="set-header">
+      <span>Base Set</span>
+      <span class="set-count">1 missing</span>
+    </div>
+    <div class="card-grid">
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base1/4.png" alt="Charizard" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Charizard_(Base_Set_4)" target="_blank" style="color:inherit;text-decoration:none;">Charizard</a></span>
+      <span class="card-num">4/102</span>
+      <span class="card-price">~$614.49</span>
+    </div>
+    </div>
+  </div>
+
+  <div class="set-section">
+    <div class="set-header">
+      <span>Jungle</span>
+      <span class="set-count">10 missing</span>
+    </div>
+    <div class="card-grid">
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/2.png" alt="Electrode" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Electrode_(Jungle_2)" target="_blank" style="color:inherit;text-decoration:none;">Electrode</a></span>
+      <span class="card-num">2/64</span>
+      <span class="card-price">~$56.42</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/3.png" alt="Flareon" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Flareon_(Jungle_3)" target="_blank" style="color:inherit;text-decoration:none;">Flareon</a></span>
+      <span class="card-num">3/64</span>
+      <span class="card-price">~$158.16</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/4.png" alt="Jolteon" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Jolteon_(Jungle_4)" target="_blank" style="color:inherit;text-decoration:none;">Jolteon</a></span>
+      <span class="card-num">4/64</span>
+      <span class="card-price">~$207.75</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/7.png" alt="Nidoqueen" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Nidoqueen_(Jungle_7)" target="_blank" style="color:inherit;text-decoration:none;">Nidoqueen</a></span>
+      <span class="card-num">7/64</span>
+      <span class="card-price">~$110.94</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/8.png" alt="Pidgeot" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Pidgeot_(Jungle_8)" target="_blank" style="color:inherit;text-decoration:none;">Pidgeot</a></span>
+      <span class="card-num">8/64</span>
+      <span class="card-price">~$132.47</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/10.png" alt="Scyther" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Scyther_(Jungle_10)" target="_blank" style="color:inherit;text-decoration:none;">Scyther</a></span>
+      <span class="card-num">10/64</span>
+      <span class="card-price">~$133.86</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/11.png" alt="Snorlax" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Snorlax_(Jungle_11)" target="_blank" style="color:inherit;text-decoration:none;">Snorlax</a></span>
+      <span class="card-num">11/64</span>
+      <span class="card-price">~$354.08</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/14.png" alt="Victreebel" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Victreebel_(Jungle_14)" target="_blank" style="color:inherit;text-decoration:none;">Victreebel</a></span>
+      <span class="card-num">14/64</span>
+      <span class="card-price">~$104.48</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/15.png" alt="Vileplume" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Vileplume_(Jungle_15)" target="_blank" style="color:inherit;text-decoration:none;">Vileplume</a></span>
+      <span class="card-num">15/64</span>
+      <span class="card-price">~$91.07</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base2/16.png" alt="Wigglytuff" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Wigglytuff_(Jungle_16)" target="_blank" style="color:inherit;text-decoration:none;">Wigglytuff</a></span>
+      <span class="card-num">16/64</span>
+      <span class="card-price">~$77.45</span>
+    </div>
+    </div>
+  </div>
+
+  <div class="set-section">
+    <div class="set-header">
+      <span>Fossil</span>
+      <span class="set-count">8 missing</span>
+    </div>
+    <div class="card-grid">
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/2.png" alt="Articuno" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Articuno_(Fossil_2)" target="_blank" style="color:inherit;text-decoration:none;">Articuno</a></span>
+      <span class="card-num">2/62</span>
+      <span class="card-price">~$206.32</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/3.png" alt="Ditto" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Ditto_(Fossil_3)" target="_blank" style="color:inherit;text-decoration:none;">Ditto</a></span>
+      <span class="card-num">3/62</span>
+      <span class="card-price">~$109.52</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/4.png" alt="Dragonite" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dragonite_(Fossil_4)" target="_blank" style="color:inherit;text-decoration:none;">Dragonite</a></span>
+      <span class="card-num">4/62</span>
+      <span class="card-price">~$356.07</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/5.png" alt="Gengar" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Gengar_(Fossil_5)" target="_blank" style="color:inherit;text-decoration:none;">Gengar</a></span>
+      <span class="card-num">5/62</span>
+      <span class="card-price">~$254.62</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/8.png" alt="Hypno" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Hypno_(Fossil_8)" target="_blank" style="color:inherit;text-decoration:none;">Hypno</a></span>
+      <span class="card-num">8/62</span>
+      <span class="card-price">~$63.82</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/9.png" alt="Kabutops" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Kabutops_(Fossil_9)" target="_blank" style="color:inherit;text-decoration:none;">Kabutops</a></span>
+      <span class="card-num">9/62</span>
+      <span class="card-price">~$103.14</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/14.png" alt="Raichu" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Raichu_(Fossil_14)" target="_blank" style="color:inherit;text-decoration:none;">Raichu</a></span>
+      <span class="card-num">14/62</span>
+      <span class="card-price">~$117.84</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base3/15.png" alt="Zapdos" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Zapdos_(Fossil_15)" target="_blank" style="color:inherit;text-decoration:none;">Zapdos</a></span>
+      <span class="card-num">15/62</span>
+      <span class="card-price">~$121.29</span>
+    </div>
+    </div>
+  </div>
+
+  <div class="set-section">
+    <div class="set-header">
+      <span>Team Rocket</span>
+      <span class="set-count">11 missing</span>
+    </div>
+    <div class="card-grid">
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/3.png" alt="Dark Blastoise" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Blastoise_(Team_Rocket_3)" target="_blank" style="color:inherit;text-decoration:none;">Dark Blastoise</a></span>
+      <span class="card-num">3/82</span>
+      <span class="card-price">~$331.37</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/4.png" alt="Dark Charizard" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Charizard_(Team_Rocket_4)" target="_blank" style="color:inherit;text-decoration:none;">Dark Charizard</a></span>
+      <span class="card-num">4/82</span>
+      <span class="card-price">~$334.50</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/5.png" alt="Dark Dragonite" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Dragonite_(Team_Rocket_5)" target="_blank" style="color:inherit;text-decoration:none;">Dark Dragonite</a></span>
+      <span class="card-num">5/82</span>
+      <span class="card-price">~$351.92</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/7.png" alt="Dark Golbat" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Golbat_(Team_Rocket_7)" target="_blank" style="color:inherit;text-decoration:none;">Dark Golbat</a></span>
+      <span class="card-num">7/82</span>
+      <span class="card-price">~$59.21</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/8.png" alt="Dark Gyarados" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Gyarados_(Team_Rocket_8)" target="_blank" style="color:inherit;text-decoration:none;">Dark Gyarados</a></span>
+      <span class="card-num">8/82</span>
+      <span class="card-price">~$155.14</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/11.png" alt="Dark Magneton" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Magneton_(Team_Rocket_11)" target="_blank" style="color:inherit;text-decoration:none;">Dark Magneton</a></span>
+      <span class="card-num">11/82</span>
+      <span class="card-price">~$96.72</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/12.png" alt="Dark Slowbro" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Slowbro_(Team_Rocket_12)" target="_blank" style="color:inherit;text-decoration:none;">Dark Slowbro</a></span>
+      <span class="card-num">12/82</span>
+      <span class="card-price">~$91.35</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/13.png" alt="Dark Vileplume" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Vileplume_(Team_Rocket_13)" target="_blank" style="color:inherit;text-decoration:none;">Dark Vileplume</a></span>
+      <span class="card-num">13/82</span>
+      <span class="card-price">~$64.65</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/15.png" alt="Here Comes Team Rocket!" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Here_Comes_Team_Rocket!_(Team_Rocket_15)" target="_blank" style="color:inherit;text-decoration:none;">Here Comes Team Rocket!</a></span>
+      <span class="card-num">15/82</span>
+      <span class="card-price">~$59.92</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/16.png" alt="Rocket's Sneak Attack" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Rocket%27s_Sneak_Attack_(Team_Rocket_16)" target="_blank" style="color:inherit;text-decoration:none;">Rocket's Sneak Attack</a></span>
+      <span class="card-num">16/82</span>
+      <span class="card-price">~$41.32</span>
+    </div>
+    <div class="card-tile">
+      <input type="checkbox" title="Mark as found">
+      <img class="card-img" src="https://images.pokemontcg.io/base5/21.png" alt="Dark Charizard" loading="lazy">
+      <span class="card-name"><a href="https://bulbapedia.bulbagarden.net/wiki/Dark_Charizard_(Team_Rocket_21)" target="_blank" style="color:inherit;text-decoration:none;">Dark Charizard</a></span>
+      <span class="card-num">21/82</span>
+      <span class="card-price">~$162.67</span>
+    </div>
+    </div>
+  </div>
+</body></html>
