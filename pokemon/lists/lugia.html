@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lugia — All TCG Cards</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f0f0f5;color:#222;min-height:100vh}
+.topbar{background:#1a1a2e;color:#fff;padding:14px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.topbar-title{font-size:1rem;font-weight:700;white-space:nowrap}
+#search{flex:1;min-width:160px;padding:7px 12px;border-radius:18px;border:none;font-size:.875rem;outline:none}
+.topbar-stats{font-size:.78rem;opacity:.7;white-space:nowrap}
+.filter-label{font-size:.75rem;opacity:.75;display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
+.topbar-btn{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);padding:5px 12px;border-radius:14px;font-size:.75rem;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.topbar-btn:hover{background:rgba(255,255,255,.22)}
+#csv-import{display:none}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;padding:16px}
+.card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.1);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s}
+.card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.16)}
+.card-tile.owned{opacity:.5;outline:2px solid #2ecc71}
+.card-tile.hidden{display:none!important}
+.card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
+.card-img{width:106px;height:auto;display:block;border-radius:6px}
+.no-img{width:106px;height:148px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#bbb}
+.card-overlay{position:absolute;inset:0;background:rgba(0,0,0,.42);color:#fff;font-size:.7rem;font-weight:600;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;border-radius:6px}
+.card-img-wrap:hover .card-overlay{opacity:1}
+.card-name{font-size:.72rem;font-weight:600;line-height:1.3}
+.card-num{font-size:.64rem;color:#bbb}
+.card-set-badge{font-size:.6rem;color:#aaa;text-align:center;line-height:1.3}
+.card-price{font-size:.67rem;color:#2d8a4e;font-weight:700}
+.owned-check{position:absolute;top:6px;right:6px;cursor:pointer;z-index:2}
+.owned-check input{display:none}
+.checkmark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid #ddd;background:#fff;font-size:.68rem;color:transparent;transition:all .15s}
+.owned-check input:checked+.checkmark{background:#2ecc71;border-color:#2ecc71;color:#fff}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;padding:22px;position:relative}
+.modal-close{position:absolute;top:10px;right:13px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#ccc}
+.modal-close:hover{color:#333}
+.modal-inner{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.modal-img{width:150px;border-radius:8px;flex-shrink:0}
+.modal-details{flex:1;min-width:150px}
+.modal-details h2{font-size:1rem;margin-bottom:3px}
+.modal-set-line{font-size:.77rem;color:#aaa;margin-bottom:10px}
+.price-table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:12px}
+.price-table th{text-align:left;color:#bbb;font-weight:600;padding:3px 5px 3px 0;border-bottom:1px solid #f0f0f0}
+.price-table td{padding:3px 5px 3px 0}
+.price-table tr:not(:last-child) td{border-bottom:1px solid #f8f8f8}
+.finish-label{font-weight:600;color:#555}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.btn{padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;display:inline-block;text-align:center}
+.btn-ebay{background:#e53238;color:#fff}
+.btn-ebay:hover{background:#c0272d}
+.btn-bulba{background:#3b5fa0;color:#fff}
+.btn-bulba:hover{background:#2d4a80}
+.btn-owned{background:#eee;color:#333}
+.btn-owned.active{background:#2ecc71;color:#fff}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-title">Lugia — All TCG Cards</span>
+  <input type="search" id="search" placeholder="Filter by name or set…" oninput="filterCards(this.value)">
+  <span class="topbar-stats" id="stats"></span>
+  <label class="filter-label"><input type="checkbox" id="unowned-only" onchange="filterCards(document.getElementById('search').value)"> Unowned only</label>
+  <a class="topbar-btn" href="lugia.csv" download>&#8681; CSV</a>
+  <button class="topbar-btn" onclick="exportCSV()">Export state</button>
+  <button class="topbar-btn" onclick="document.getElementById('csv-import').click()">Import CSV</button>
+  <input type="file" id="csv-import" accept=".csv" onchange="importCSV(this)">
+</div>
+
+<div class="card-grid" id="grid">
+<div class="card-tile" data-id="neo1-9" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="neo1-9" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('neo1-9')">
+    <img class="card-img" src="https://images.pokemontcg.io/neo1/9.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">9</span>
+  <span class="card-set-badge">Neo Genesis</span>
+  <span class="card-price">~$1599.98</span>
+</div>
+<div class="card-tile" data-id="neo3-20" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="neo3-20" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('neo3-20')">
+    <img class="card-img" src="https://images.pokemontcg.io/neo3/20.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">20</span>
+  <span class="card-set-badge">Neo Revelation</span>
+  <span class="card-price">~$118.31</span>
+</div>
+<div class="card-tile" data-id="ecard2-149" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ecard2-149" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ecard2-149')">
+    <img class="card-img" src="https://images.pokemontcg.io/ecard2/149.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">149</span>
+  <span class="card-set-badge">Aquapolis</span>
+  <span class="card-price">~$2225.00</span>
+</div>
+<div class="card-tile" data-id="ex10-29" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex10-29" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex10-29')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex10/29.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">29</span>
+  <span class="card-set-badge">Unseen Forces</span>
+  <span class="card-price">~$18.54</span>
+</div>
+<div class="card-tile" data-id="ex10-105" data-name="lugia ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex10-105" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex10-105')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex10/105.png" alt="Lugia ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia ex</span>
+  <span class="card-num">105</span>
+  <span class="card-set-badge">Unseen Forces</span>
+  <span class="card-price">~$902.49</span>
+</div>
+<div class="card-tile" data-id="pop5-2" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pop5-2" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pop5-2')">
+    <img class="card-img" src="https://images.pokemontcg.io/pop5/2.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">2</span>
+  <span class="card-set-badge">POP Series 5</span>
+  <span class="card-price">~$110.00</span>
+</div>
+<div class="card-tile" data-id="dp3-14" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="dp3-14" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('dp3-14')">
+    <img class="card-img" src="https://images.pokemontcg.io/dp3/14.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">14</span>
+  <span class="card-set-badge">Secret Wonders</span>
+  <span class="card-price">~$99.49</span>
+</div>
+<div class="card-tile" data-id="hsp-HGSS02" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="hsp-HGSS02" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('hsp-HGSS02')">
+    <img class="card-img" src="https://images.pokemontcg.io/hsp/HGSS02.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">HGSS02</span>
+  <span class="card-set-badge">HGSS Black Star Promos</span>
+  <span class="card-price">~$73.43</span>
+</div>
+<div class="card-tile" data-id="hgss1-113" data-name="lugia legend">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="hgss1-113" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('hgss1-113')">
+    <img class="card-img" src="https://images.pokemontcg.io/hgss1/113.png" alt="Lugia LEGEND" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia LEGEND</span>
+  <span class="card-num">113</span>
+  <span class="card-set-badge">HeartGold &amp; SoulSilver</span>
+  <span class="card-price">~$261.24</span>
+</div>
+<div class="card-tile" data-id="hgss1-114" data-name="lugia legend">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="hgss1-114" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('hgss1-114')">
+    <img class="card-img" src="https://images.pokemontcg.io/hgss1/114.png" alt="Lugia LEGEND" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia LEGEND</span>
+  <span class="card-num">114</span>
+  <span class="card-set-badge">HeartGold &amp; SoulSilver</span>
+  <span class="card-price">~$269.40</span>
+</div>
+<div class="card-tile" data-id="col1-SL7" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="col1-SL7" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('col1-SL7')">
+    <img class="card-img" src="https://images.pokemontcg.io/col1/SL7.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">SL7</span>
+  <span class="card-set-badge">Call of Legends</span>
+  
+</div>
+<div class="card-tile" data-id="col1-15" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="col1-15" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('col1-15')">
+    <img class="card-img" src="https://images.pokemontcg.io/col1/15.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">15</span>
+  <span class="card-set-badge">Call of Legends</span>
+  <span class="card-price">~$112.85</span>
+</div>
+<div class="card-tile" data-id="bwp-BW83" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="bwp-BW83" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('bwp-BW83')">
+    <img class="card-img" src="https://images.pokemontcg.io/bwp/BW83.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">BW83</span>
+  <span class="card-set-badge">BW Black Star Promos</span>
+  <span class="card-price">~$30.70</span>
+</div>
+<div class="card-tile" data-id="bw8-108" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="bw8-108" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('bw8-108')">
+    <img class="card-img" src="https://images.pokemontcg.io/bw8/108.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">108</span>
+  <span class="card-set-badge">Plasma Storm</span>
+  <span class="card-price">~$60.80</span>
+</div>
+<div class="card-tile" data-id="bw8-134" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="bw8-134" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('bw8-134')">
+    <img class="card-img" src="https://images.pokemontcg.io/bw8/134.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">134</span>
+  <span class="card-set-badge">Plasma Storm</span>
+  <span class="card-price">~$725.00</span>
+</div>
+<div class="card-tile" data-id="xyp-XY156" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xyp-XY156" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xyp-XY156')">
+    <img class="card-img" src="https://images.pokemontcg.io/xyp/XY156.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">XY156</span>
+  <span class="card-set-badge">XY Black Star Promos</span>
+  <span class="card-price">~$33.62</span>
+</div>
+<div class="card-tile" data-id="bw11-102" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="bw11-102" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('bw11-102')">
+    <img class="card-img" src="https://images.pokemontcg.io/bw11/102.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">102</span>
+  <span class="card-set-badge">Legendary Treasures</span>
+  <span class="card-price">~$32.53</span>
+</div>
+<div class="card-tile" data-id="xy7-68" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy7-68" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy7-68')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy7/68.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">68</span>
+  <span class="card-set-badge">Ancient Origins</span>
+  <span class="card-price">~$16.87</span>
+</div>
+<div class="card-tile" data-id="xy7-94" data-name="lugia-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy7-94" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy7-94')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy7/94.png" alt="Lugia-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-EX</span>
+  <span class="card-num">94</span>
+  <span class="card-set-badge">Ancient Origins</span>
+  <span class="card-price">~$213.05</span>
+</div>
+<div class="card-tile" data-id="xy10-78" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy10-78" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy10-78')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy10/78.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">78</span>
+  <span class="card-set-badge">Fates Collide</span>
+  <span class="card-price">~$2.00</span>
+</div>
+<div class="card-tile" data-id="xy10-79" data-name="lugia break">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy10-79" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy10-79')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy10/79.png" alt="Lugia BREAK" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia BREAK</span>
+  <span class="card-num">79</span>
+  <span class="card-set-badge">Fates Collide</span>
+  <span class="card-price">~$23.52</span>
+</div>
+<div class="card-tile" data-id="smp-SM82" data-name="shining lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="smp-SM82" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('smp-SM82')">
+    <img class="card-img" src="https://images.pokemontcg.io/smp/SM82.png" alt="Shining Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Shining Lugia</span>
+  <span class="card-num">SM82</span>
+  <span class="card-set-badge">SM Black Star Promos</span>
+  <span class="card-price">~$103.48</span>
+</div>
+<div class="card-tile" data-id="sm8-159" data-name="lugia-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm8-159" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm8-159')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm8/159.png" alt="Lugia-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-GX</span>
+  <span class="card-num">159</span>
+  <span class="card-set-badge">Lost Thunder</span>
+  <span class="card-price">~$32.56</span>
+</div>
+<div class="card-tile" data-id="sm8-207" data-name="lugia-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm8-207" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm8-207')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm8/207.png" alt="Lugia-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-GX</span>
+  <span class="card-num">207</span>
+  <span class="card-set-badge">Lost Thunder</span>
+  <span class="card-price">~$107.60</span>
+</div>
+<div class="card-tile" data-id="sm8-227" data-name="lugia-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm8-227" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm8-227')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm8/227.png" alt="Lugia-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia-GX</span>
+  <span class="card-num">227</span>
+  <span class="card-set-badge">Lost Thunder</span>
+  <span class="card-price">~$245.05</span>
+</div>
+<div class="card-tile" data-id="sm9-131" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm9-131" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm9-131')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm9/131.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">131</span>
+  <span class="card-set-badge">Team Up</span>
+  <span class="card-price">~$14.03</span>
+</div>
+<div class="card-tile" data-id="swshp-SWSH069" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swshp-SWSH069" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swshp-SWSH069')">
+    <img class="card-img" src="https://images.pokemontcg.io/swshp/SWSH069.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">SWSH069</span>
+  <span class="card-set-badge">SWSH Black Star Promos</span>
+  <span class="card-price">~$35.37</span>
+</div>
+<div class="card-tile" data-id="swsh3-140" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh3-140" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh3-140')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh3/140.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">140</span>
+  <span class="card-set-badge">Darkness Ablaze</span>
+  <span class="card-price">~$0.51</span>
+</div>
+<div class="card-tile" data-id="swsh4-132" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh4-132" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh4-132')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh4/132.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">132</span>
+  <span class="card-set-badge">Vivid Voltage</span>
+  <span class="card-price">~$1.87</span>
+</div>
+<div class="card-tile" data-id="cel25-22" data-name="lugia">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="cel25-22" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('cel25-22')">
+    <img class="card-img" src="https://images.pokemontcg.io/cel25/22.png" alt="Lugia" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia</span>
+  <span class="card-num">22</span>
+  <span class="card-set-badge">Celebrations</span>
+  <span class="card-price">~$0.90</span>
+</div>
+<div class="card-tile" data-id="swsh12-138" data-name="lugia v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-138" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-138')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/138.png" alt="Lugia V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia V</span>
+  <span class="card-num">138</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$13.42</span>
+</div>
+<div class="card-tile" data-id="swsh12-139" data-name="lugia vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-139" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-139')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/139.png" alt="Lugia VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia VSTAR</span>
+  <span class="card-num">139</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$5.87</span>
+</div>
+<div class="card-tile" data-id="swsh12-185" data-name="lugia v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-185" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-185')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/185.png" alt="Lugia V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia V</span>
+  <span class="card-num">185</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$14.45</span>
+</div>
+<div class="card-tile" data-id="swsh12-186" data-name="lugia v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-186" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-186')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/186.png" alt="Lugia V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia V</span>
+  <span class="card-num">186</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$517.99</span>
+</div>
+<div class="card-tile" data-id="swsh12-202" data-name="lugia vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-202" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-202')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/202.png" alt="Lugia VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia VSTAR</span>
+  <span class="card-num">202</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$40.85</span>
+</div>
+<div class="card-tile" data-id="swsh12-211" data-name="lugia vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-211" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-211')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/211.png" alt="Lugia VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia VSTAR</span>
+  <span class="card-num">211</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$24.12</span>
+</div>
+<div class="card-tile" data-id="sv8pt5-82" data-name="lugia ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sv8pt5-82" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sv8pt5-82')">
+    <img class="card-img" src="https://images.pokemontcg.io/sv8pt5/82.png" alt="Lugia ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Lugia ex</span>
+  <span class="card-num">82</span>
+  <span class="card-set-badge">Prismatic Evolutions</span>
+  <span class="card-price">~$1.39</span>
+</div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">&#215;</button>
+    <div class="modal-inner">
+      <img class="modal-img" id="modal-img" src="" alt="">
+      <div class="modal-details">
+        <h2 id="modal-name"></h2>
+        <div class="modal-set-line" id="modal-set-line"></div>
+        <table class="price-table" id="modal-prices"></table>
+        <div class="modal-actions">
+          <a class="btn btn-ebay" id="modal-ebay" href="#" target="_blank" rel="noopener">Search eBay</a>
+          <a class="btn btn-bulba" id="modal-bulba" href="#" target="_blank" rel="noopener">Bulbapedia</a>
+          <button class="btn btn-owned" id="modal-owned-btn" onclick="toggleOwnedFromModal()">Mark Owned</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CARDS = {"neo1-9":{"id":"neo1-9","name":"Lugia","number":"9","set":"Neo Genesis","imgLarge":"https://images.pokemontcg.io/neo1/9_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Neo+Genesis+9","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Neo+Genesis+9&ns0=1","prices":{"1stEditionHolofoil":{"low":1300.0,"mid":8000.0,"high":10000.0,"market":1599.98,"directLow":null},"unlimitedHolofoil":{"low":300.0,"mid":394.65,"high":615.74,"market":511.14,"directLow":null}}},"neo3-20":{"id":"neo3-20","name":"Lugia","number":"20","set":"Neo Revelation","imgLarge":"https://images.pokemontcg.io/neo3/20_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Neo+Revelation+20","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Neo+Revelation+20&ns0=1","prices":{"1stEdition":{"low":70.0,"mid":2426.79,"high":9999.0,"market":118.31,"directLow":4353.58},"unlimited":{"low":50.0,"mid":75.0,"high":9999.0,"market":39.52,"directLow":null}}},"ecard2-149":{"id":"ecard2-149","name":"Lugia","number":"149","set":"Aquapolis","imgLarge":"https://images.pokemontcg.io/ecard2/149_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Aquapolis+149","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Aquapolis+149&ns0=1","prices":{"holofoil":{"low":6701.0,"mid":8350.5,"high":10000.0,"market":2225.0,"directLow":null}}},"ex10-29":{"id":"ex10-29","name":"Lugia","number":"29","set":"Unseen Forces","imgLarge":"https://images.pokemontcg.io/ex10/29_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Unseen+Forces+29","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Unseen+Forces+29&ns0=1","prices":{"normal":{"low":11.91,"mid":17.73,"high":144.4,"market":18.54,"directLow":null},"reverseHolofoil":{"low":250.0,"mid":500.0,"high":966.88,"market":225.47,"directLow":null}}},"ex10-105":{"id":"ex10-105","name":"Lugia ex","number":"105","set":"Unseen Forces","imgLarge":"https://images.pokemontcg.io/ex10/105_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+ex+Unseen+Forces+105","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+ex+Unseen+Forces+105&ns0=1","prices":{"holofoil":{"low":349.9,"mid":372.5,"high":601.03,"market":902.49,"directLow":null}}},"pop5-2":{"id":"pop5-2","name":"Lugia","number":"2","set":"POP Series 5","imgLarge":"https://images.pokemontcg.io/pop5/2_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+POP+Series+5+2","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+POP+Series+5+2&ns0=1","prices":{"normal":{"low":44.99,"mid":101.9,"high":1129.5,"market":95.15,"directLow":null},"holofoil":{"low":44.0,"mid":94.32,"high":9999.0,"market":110.0,"directLow":null}}},"dp3-14":{"id":"dp3-14","name":"Lugia","number":"14","set":"Secret Wonders","imgLarge":"https://images.pokemontcg.io/dp3/14_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Secret+Wonders+14","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Secret+Wonders+14&ns0=1","prices":{"holofoil":{"low":70.0,"mid":98.99,"high":1000.0,"market":99.49,"directLow":null},"reverseHolofoil":{"low":69.99,"mid":125.65,"high":211.19,"market":140.67,"directLow":null}}},"hsp-HGSS02":{"id":"hsp-HGSS02","name":"Lugia","number":"HGSS02","set":"HGSS Black Star Promos","imgLarge":"https://images.pokemontcg.io/hsp/HGSS02_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+HGSS+Black+Star+Promos+HGSS02","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+HGSS+Black+Star+Promos+HGSS02&ns0=1","prices":{"holofoil":{"low":94.49,"mid":929.9,"high":1003.0,"market":73.43,"directLow":null}}},"hgss1-113":{"id":"hgss1-113","name":"Lugia LEGEND","number":"113","set":"HeartGold & SoulSilver","imgLarge":"https://images.pokemontcg.io/hgss1/113_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+LEGEND+HeartGold+%26+SoulSilver+113","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+LEGEND+HeartGold+%26+SoulSilver+113&ns0=1","prices":{"holofoil":{"low":165.0,"mid":246.79,"high":988.0,"market":261.24,"directLow":null}}},"hgss1-114":{"id":"hgss1-114","name":"Lugia LEGEND","number":"114","set":"HeartGold & SoulSilver","imgLarge":"https://images.pokemontcg.io/hgss1/114_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+LEGEND+HeartGold+%26+SoulSilver+114","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+LEGEND+HeartGold+%26+SoulSilver+114&ns0=1","prices":{"holofoil":{"low":224.99,"mid":319.99,"high":900.0,"market":269.4,"directLow":null}}},"col1-SL7":{"id":"col1-SL7","name":"Lugia","number":"SL7","set":"Call of Legends","imgLarge":"https://images.pokemontcg.io/col1/SL7_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Call+of+Legends+SL7","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Call+of+Legends+SL7&ns0=1","prices":{}},"col1-15":{"id":"col1-15","name":"Lugia","number":"15","set":"Call of Legends","imgLarge":"https://images.pokemontcg.io/col1/15_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Call+of+Legends+15","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Call+of+Legends+15&ns0=1","prices":{"holofoil":{"low":85.0,"mid":299.99,"high":1468.9,"market":112.85,"directLow":null},"reverseHolofoil":{"low":119.0,"mid":119.99,"high":1399.99,"market":114.09,"directLow":null}}},"bwp-BW83":{"id":"bwp-BW83","name":"Lugia-EX","number":"BW83","set":"BW Black Star Promos","imgLarge":"https://images.pokemontcg.io/bwp/BW83_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+BW+Black+Star+Promos+BW83","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+BW+Black+Star+Promos+BW83&ns0=1","prices":{"holofoil":{"low":19.74,"mid":45.17,"high":299.5,"market":30.7,"directLow":null}}},"bw8-108":{"id":"bw8-108","name":"Lugia-EX","number":"108","set":"Plasma Storm","imgLarge":"https://images.pokemontcg.io/bw8/108_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+Plasma+Storm+108","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+Plasma+Storm+108&ns0=1","prices":{"holofoil":{"low":59.98,"mid":77.0,"high":709.5,"market":60.8,"directLow":null}}},"bw8-134":{"id":"bw8-134","name":"Lugia-EX","number":"134","set":"Plasma Storm","imgLarge":"https://images.pokemontcg.io/bw8/134_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+Plasma+Storm+134","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+Plasma+Storm+134&ns0=1","prices":{"holofoil":{"low":530.0,"mid":1065.57,"high":6905.53,"market":725.0,"directLow":6905.53}}},"xyp-XY156":{"id":"xyp-XY156","name":"Lugia","number":"XY156","set":"XY Black Star Promos","imgLarge":"https://images.pokemontcg.io/xyp/XY156_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+XY+Black+Star+Promos+XY156","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+XY+Black+Star+Promos+XY156&ns0=1","prices":{"holofoil":{"low":19.99,"mid":29.49,"high":1748.4,"market":33.62,"directLow":1748.4}}},"bw11-102":{"id":"bw11-102","name":"Lugia-EX","number":"102","set":"Legendary Treasures","imgLarge":"https://images.pokemontcg.io/bw11/102_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+Legendary+Treasures+102","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+Legendary+Treasures+102&ns0=1","prices":{"holofoil":{"low":24.0,"mid":37.19,"high":404.8,"market":32.53,"directLow":null}}},"xy7-68":{"id":"xy7-68","name":"Lugia-EX","number":"68","set":"Ancient Origins","imgLarge":"https://images.pokemontcg.io/xy7/68_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+Ancient+Origins+68","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+Ancient+Origins+68&ns0=1","prices":{"holofoil":{"low":6.75,"mid":10.47,"high":4321.0,"market":16.87,"directLow":14.86}}},"xy7-94":{"id":"xy7-94","name":"Lugia-EX","number":"94","set":"Ancient Origins","imgLarge":"https://images.pokemontcg.io/xy7/94_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-EX+Ancient+Origins+94","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-EX+Ancient+Origins+94&ns0=1","prices":{"holofoil":{"low":137.33,"mid":180.0,"high":2021.4,"market":213.05,"directLow":null}}},"xy10-78":{"id":"xy10-78","name":"Lugia","number":"78","set":"Fates Collide","imgLarge":"https://images.pokemontcg.io/xy10/78_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Fates+Collide+78","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Fates+Collide+78&ns0=1","prices":{"normal":{"low":0.75,"mid":1.97,"high":100.0,"market":2.0,"directLow":3.99},"reverseHolofoil":{"low":3.37,"mid":6.4,"high":41.19,"market":6.91,"directLow":5.42}}},"xy10-79":{"id":"xy10-79","name":"Lugia BREAK","number":"79","set":"Fates Collide","imgLarge":"https://images.pokemontcg.io/xy10/79_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+BREAK+Fates+Collide+79","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+BREAK+Fates+Collide+79&ns0=1","prices":{"holofoil":{"low":19.99,"mid":26.99,"high":189.83,"market":23.52,"directLow":24.7}}},"smp-SM82":{"id":"smp-SM82","name":"Shining Lugia","number":"SM82","set":"SM Black Star Promos","imgLarge":"https://images.pokemontcg.io/smp/SM82_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Shining+Lugia+SM+Black+Star+Promos+SM82","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Shining+Lugia+SM+Black+Star+Promos+SM82&ns0=1","prices":{"holofoil":{"low":71.29,"mid":105.0,"high":9999.0,"market":103.48,"directLow":91.98}}},"sm8-159":{"id":"sm8-159","name":"Lugia-GX","number":"159","set":"Lost Thunder","imgLarge":"https://images.pokemontcg.io/sm8/159_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-GX+Lost+Thunder+159","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-GX+Lost+Thunder+159&ns0=1","prices":{"holofoil":{"low":22.93,"mid":35.3,"high":199.32,"market":32.56,"directLow":43.69}}},"sm8-207":{"id":"sm8-207","name":"Lugia-GX","number":"207","set":"Lost Thunder","imgLarge":"https://images.pokemontcg.io/sm8/207_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-GX+Lost+Thunder+207","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-GX+Lost+Thunder+207&ns0=1","prices":{"holofoil":{"low":88.17,"mid":130.5,"high":1013.1,"market":107.6,"directLow":null}}},"sm8-227":{"id":"sm8-227","name":"Lugia-GX","number":"227","set":"Lost Thunder","imgLarge":"https://images.pokemontcg.io/sm8/227_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia-GX+Lost+Thunder+227","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia-GX+Lost+Thunder+227&ns0=1","prices":{"holofoil":{"low":208.07,"mid":374.05,"high":2026.8,"market":245.05,"directLow":null}}},"sm9-131":{"id":"sm9-131","name":"Lugia","number":"131","set":"Team Up","imgLarge":"https://images.pokemontcg.io/sm9/131_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Team+Up+131","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Team+Up+131&ns0=1","prices":{"reverseHolofoil":{"low":11.94,"mid":17.0,"high":129.65,"market":14.29,"directLow":17.99},"holofoil":{"low":8.45,"mid":13.5,"high":114.99,"market":14.03,"directLow":114.98}}},"swshp-SWSH069":{"id":"swshp-SWSH069","name":"Lugia","number":"SWSH069","set":"SWSH Black Star Promos","imgLarge":"https://images.pokemontcg.io/swshp/SWSH069_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+SWSH+Black+Star+Promos+SWSH069","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+SWSH+Black+Star+Promos+SWSH069&ns0=1","prices":{"holofoil":{"low":32.49,"mid":49.98,"high":149.05,"market":35.37,"directLow":49.94}}},"swsh3-140":{"id":"swsh3-140","name":"Lugia","number":"140","set":"Darkness Ablaze","imgLarge":"https://images.pokemontcg.io/swsh3/140_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Darkness+Ablaze+140","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Darkness+Ablaze+140&ns0=1","prices":{"reverseHolofoil":{"low":0.5,"mid":1.99,"high":19.98,"market":1.81,"directLow":null},"normal":{"low":0.08,"mid":0.56,"high":100.0,"market":0.51,"directLow":0.66}}},"swsh4-132":{"id":"swsh4-132","name":"Lugia","number":"132","set":"Vivid Voltage","imgLarge":"https://images.pokemontcg.io/swsh4/132_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Vivid+Voltage+132","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Vivid+Voltage+132&ns0=1","prices":{"holofoil":{"low":0.35,"mid":1.5,"high":15.37,"market":1.87,"directLow":3.44},"reverseHolofoil":{"low":0.34,"mid":1.69,"high":19.98,"market":1.64,"directLow":null}}},"cel25-22":{"id":"cel25-22","name":"Lugia","number":"22","set":"Celebrations","imgLarge":"https://images.pokemontcg.io/cel25/22_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+Celebrations+22","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+Celebrations+22&ns0=1","prices":{"holofoil":{"low":0.09,"mid":0.8,"high":4321.0,"market":0.9,"directLow":1.03}}},"swsh12-138":{"id":"swsh12-138","name":"Lugia V","number":"138","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/138_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+V+Silver+Tempest+138","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+V+Silver+Tempest+138&ns0=1","prices":{"holofoil":{"low":12.75,"mid":15.97,"high":101.5,"market":13.42,"directLow":16.75}}},"swsh12-139":{"id":"swsh12-139","name":"Lugia VSTAR","number":"139","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/139_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+VSTAR+Silver+Tempest+139","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+VSTAR+Silver+Tempest+139&ns0=1","prices":{"holofoil":{"low":4.15,"mid":7.0,"high":96.94,"market":5.87,"directLow":6.68}}},"swsh12-185":{"id":"swsh12-185","name":"Lugia V","number":"185","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/185_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+V+Silver+Tempest+185","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+V+Silver+Tempest+185&ns0=1","prices":{"holofoil":{"low":12.98,"mid":15.89,"high":142.96,"market":14.45,"directLow":14.13}}},"swsh12-186":{"id":"swsh12-186","name":"Lugia V","number":"186","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/186_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+V+Silver+Tempest+186","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+V+Silver+Tempest+186&ns0=1","prices":{"holofoil":{"low":517.99,"mid":649.99,"high":3760.81,"market":517.99,"directLow":680.0}}},"swsh12-202":{"id":"swsh12-202","name":"Lugia VSTAR","number":"202","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/202_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+VSTAR+Silver+Tempest+202","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+VSTAR+Silver+Tempest+202&ns0=1","prices":{"holofoil":{"low":35.04,"mid":44.67,"high":90.0,"market":40.85,"directLow":36.99}}},"swsh12-211":{"id":"swsh12-211","name":"Lugia VSTAR","number":"211","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/211_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+VSTAR+Silver+Tempest+211","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+VSTAR+Silver+Tempest+211&ns0=1","prices":{"holofoil":{"low":19.98,"mid":28.05,"high":79.99,"market":24.12,"directLow":19.98}}},"sv8pt5-82":{"id":"sv8pt5-82","name":"Lugia ex","number":"82","set":"Prismatic Evolutions","imgLarge":"https://images.pokemontcg.io/sv8pt5/82_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Lugia+ex+Prismatic+Evolutions+82","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Lugia+ex+Prismatic+Evolutions+82&ns0=1","prices":{"holofoil":{"low":0.87,"mid":1.49,"high":4321.0,"market":1.39,"directLow":null}}}};
+const FINISH_LABELS = {"1stEditionHolofoil":"1st Ed. Holo","unlimitedHolofoil":"Unlimited Holo","holofoil":"Holofoil","1stEdition":"1st Edition","unlimited":"Unlimited","normal":"Normal","reverseHolofoil":"Reverse Holo"};
+let currentModalId = null;
+
+function storageKey() { return 'owned_lugia_—_all_tcg_cards'; }
+function getOwned() { try { return JSON.parse(localStorage.getItem(storageKey()) || '{}'); } catch { return {}; } }
+function saveOwned(o) { localStorage.setItem(storageKey(), JSON.stringify(o)); }
+
+(function init() {
+  const owned = getOwned();
+  document.querySelectorAll('.card-tile').forEach(t => {
+    if (owned[t.dataset.id]) {
+      t.classList.add('owned');
+      t.querySelector('input[type=checkbox]').checked = true;
+    }
+  });
+  updateStats();
+})();
+
+function toggleOwned(cb) {
+  const id = cb.dataset.id;
+  const owned = getOwned();
+  if (cb.checked) owned[id] = true; else delete owned[id];
+  saveOwned(owned);
+  document.querySelector(`.card-tile[data-id="${id}"]`).classList.toggle('owned', cb.checked);
+  if (currentModalId === id) syncModalBtn(cb.checked);
+  updateStats();
+}
+
+function toggleOwnedFromModal() {
+  if (!currentModalId) return;
+  const cb = document.querySelector(`input[data-id="${currentModalId}"]`);
+  if (cb) { cb.checked = !cb.checked; toggleOwned(cb); }
+}
+
+function updateStats() {
+  const tiles = document.querySelectorAll('.card-tile:not(.hidden)');
+  const owned = getOwned();
+  const n = [...tiles].filter(t => owned[t.dataset.id]).length;
+  document.getElementById('stats').textContent = `${n} / ${tiles.length} owned`;
+}
+
+function filterCards(q) {
+  const query = q.toLowerCase().trim();
+  const unownedOnly = document.getElementById('unowned-only').checked;
+  const owned = getOwned();
+  document.querySelectorAll('.card-tile').forEach(t => {
+    const nameMatch = !query || t.dataset.name.includes(query);
+    const hide = !nameMatch || (unownedOnly && owned[t.dataset.id]);
+    t.classList.toggle('hidden', hide);
+  });
+  updateStats();
+}
+
+function openModal(id) {
+  const c = CARDS[id];
+  if (!c) return;
+  currentModalId = id;
+  const img = document.getElementById('modal-img');
+  img.src = c.imgLarge || '';
+  img.style.display = c.imgLarge ? '' : 'none';
+  document.getElementById('modal-name').textContent = c.name;
+  document.getElementById('modal-set-line').textContent = `${c.set} · #${c.number}`;
+  document.getElementById('modal-ebay').href = c.ebay;
+  document.getElementById('modal-bulba').href = c.bulba;
+  const finishes = Object.keys(c.prices).filter(f => Object.values(c.prices[f]||{}).some(v => v));
+  document.getElementById('modal-prices').innerHTML = finishes.length
+    ? '<tr><th>Finish</th><th>Low</th><th>Market</th><th>High</th></tr>' +
+      finishes.map(f => {
+        const p = c.prices[f] || {};
+        const $ = v => v ? '$' + v.toFixed(2) : '—';
+        return `<tr><td class="finish-label">${FINISH_LABELS[f]||f}</td><td>${$(p.low)}</td><td>${$(p.market)}</td><td>${$(p.high)}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="4" style="color:#bbb;font-size:.78rem">No price data</td></tr>';
+  syncModalBtn(!!getOwned()[id]);
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function syncModalBtn(owned) {
+  const btn = document.getElementById('modal-owned-btn');
+  btn.textContent = owned ? 'Owned ✓' : 'Mark Owned';
+  btn.classList.toggle('active', owned);
+}
+
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+  currentModalId = null;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function exportCSV() {
+  const owned = getOwned();
+  const rows = [['Card ID','Owned','Card Name','Set','Number']];
+  Object.values(CARDS).forEach(c => {
+    rows.push([c.id, owned[c.id] ? 'Y' : 'N', c.name, c.set, c.number]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'lugia_owned.csv';
+  a.click();
+}
+
+function importCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const idCol    = headers.indexOf('card id');
+    const ownedCol = headers.indexOf('owned');
+    if (idCol === -1 || ownedCol === -1) {
+      alert('CSV must have "Card ID" and "Owned" columns.');
+      return;
+    }
+    const owned = {};
+    lines.slice(1).forEach(line => {
+      const cols = line.split(',').map(v => v.replace(/^"|"$/g,'').trim());
+      const id  = cols[idCol];
+      const val = cols[ownedCol].toUpperCase();
+      if (id && (val === 'Y' || val === 'YES' || val === '1' || val === 'TRUE')) owned[id] = true;
+    });
+    saveOwned(owned);
+    document.querySelectorAll('.card-tile').forEach(t => {
+      const o = !!owned[t.dataset.id];
+      t.classList.toggle('owned', o);
+      t.querySelector('input[type=checkbox]').checked = o;
+    });
+    updateStats();
+    alert(`Imported ${Object.keys(owned).length} owned cards.`);
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+</script>
+</body>
+</html>

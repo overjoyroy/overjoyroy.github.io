@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dragonite — All TCG Cards</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f0f0f5;color:#222;min-height:100vh}
+.topbar{background:#1a1a2e;color:#fff;padding:14px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.topbar-title{font-size:1rem;font-weight:700;white-space:nowrap}
+#search{flex:1;min-width:160px;padding:7px 12px;border-radius:18px;border:none;font-size:.875rem;outline:none}
+.topbar-stats{font-size:.78rem;opacity:.7;white-space:nowrap}
+.filter-label{font-size:.75rem;opacity:.75;display:flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
+.topbar-btn{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);padding:5px 12px;border-radius:14px;font-size:.75rem;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-block}
+.topbar-btn:hover{background:rgba(255,255,255,.22)}
+#csv-import{display:none}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;padding:16px}
+.card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.1);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s}
+.card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.16)}
+.card-tile.owned{opacity:.5;outline:2px solid #2ecc71}
+.card-tile.hidden{display:none!important}
+.card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
+.card-img{width:106px;height:auto;display:block;border-radius:6px}
+.no-img{width:106px;height:148px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#bbb}
+.card-overlay{position:absolute;inset:0;background:rgba(0,0,0,.42);color:#fff;font-size:.7rem;font-weight:600;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;border-radius:6px}
+.card-img-wrap:hover .card-overlay{opacity:1}
+.card-name{font-size:.72rem;font-weight:600;line-height:1.3}
+.card-num{font-size:.64rem;color:#bbb}
+.card-set-badge{font-size:.6rem;color:#aaa;text-align:center;line-height:1.3}
+.card-price{font-size:.67rem;color:#2d8a4e;font-weight:700}
+.owned-check{position:absolute;top:6px;right:6px;cursor:pointer;z-index:2}
+.owned-check input{display:none}
+.checkmark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid #ddd;background:#fff;font-size:.68rem;color:transparent;transition:all .15s}
+.owned-check input:checked+.checkmark{background:#2ecc71;border-color:#2ecc71;color:#fff}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;padding:22px;position:relative}
+.modal-close{position:absolute;top:10px;right:13px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#ccc}
+.modal-close:hover{color:#333}
+.modal-inner{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.modal-img{width:150px;border-radius:8px;flex-shrink:0}
+.modal-details{flex:1;min-width:150px}
+.modal-details h2{font-size:1rem;margin-bottom:3px}
+.modal-set-line{font-size:.77rem;color:#aaa;margin-bottom:10px}
+.price-table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:12px}
+.price-table th{text-align:left;color:#bbb;font-weight:600;padding:3px 5px 3px 0;border-bottom:1px solid #f0f0f0}
+.price-table td{padding:3px 5px 3px 0}
+.price-table tr:not(:last-child) td{border-bottom:1px solid #f8f8f8}
+.finish-label{font-weight:600;color:#555}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.btn{padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;display:inline-block;text-align:center}
+.btn-ebay{background:#e53238;color:#fff}
+.btn-ebay:hover{background:#c0272d}
+.btn-bulba{background:#3b5fa0;color:#fff}
+.btn-bulba:hover{background:#2d4a80}
+.btn-owned{background:#eee;color:#333}
+.btn-owned.active{background:#2ecc71;color:#fff}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-title">Dragonite — All TCG Cards</span>
+  <input type="search" id="search" placeholder="Filter by name or set…" oninput="filterCards(this.value)">
+  <span class="topbar-stats" id="stats"></span>
+  <label class="filter-label"><input type="checkbox" id="unowned-only" onchange="filterCards(document.getElementById('search').value)"> Unowned only</label>
+  <a class="topbar-btn" href="dragonite.csv" download>&#8681; CSV</a>
+  <button class="topbar-btn" onclick="exportCSV()">Export state</button>
+  <button class="topbar-btn" onclick="document.getElementById('csv-import').click()">Import CSV</button>
+  <input type="file" id="csv-import" accept=".csv" onchange="importCSV(this)">
+</div>
+
+<div class="card-grid" id="grid">
+<div class="card-tile" data-id="basep-5" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="basep-5" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('basep-5')">
+    <img class="card-img" src="https://images.pokemontcg.io/basep/5.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">5</span>
+  <span class="card-set-badge">Wizards Black Star Promos</span>
+  <span class="card-price">~$69.81</span>
+</div>
+<div class="card-tile" data-id="base3-4" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="base3-4" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('base3-4')">
+    <img class="card-img" src="https://images.pokemontcg.io/base3/4.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">4</span>
+  <span class="card-set-badge">Fossil</span>
+  <span class="card-price">~$413.02</span>
+</div>
+<div class="card-tile" data-id="base3-19" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="base3-19" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('base3-19')">
+    <img class="card-img" src="https://images.pokemontcg.io/base3/19.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">19</span>
+  <span class="card-set-badge">Fossil</span>
+  <span class="card-price">~$85.89</span>
+</div>
+<div class="card-tile" data-id="base5-5" data-name="dark dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="base5-5" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('base5-5')">
+    <img class="card-img" src="https://images.pokemontcg.io/base5/5.png" alt="Dark Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dark Dragonite</span>
+  <span class="card-num">5</span>
+  <span class="card-set-badge">Team Rocket</span>
+  <span class="card-price">~$402.41</span>
+</div>
+<div class="card-tile" data-id="base5-22" data-name="dark dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="base5-22" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('base5-22')">
+    <img class="card-img" src="https://images.pokemontcg.io/base5/22.png" alt="Dark Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dark Dragonite</span>
+  <span class="card-num">22</span>
+  <span class="card-set-badge">Team Rocket</span>
+  <span class="card-price">~$64.11</span>
+</div>
+<div class="card-tile" data-id="neo4-14" data-name="light dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="neo4-14" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('neo4-14')">
+    <img class="card-img" src="https://images.pokemontcg.io/neo4/14.png" alt="Light Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Light Dragonite</span>
+  <span class="card-num">14</span>
+  <span class="card-set-badge">Neo Destiny</span>
+  <span class="card-price">~$350.12</span>
+</div>
+<div class="card-tile" data-id="base6-5" data-name="dark dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="base6-5" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('base6-5')">
+    <img class="card-img" src="https://images.pokemontcg.io/base6/5.png" alt="Dark Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dark Dragonite</span>
+  <span class="card-num">5</span>
+  <span class="card-set-badge">Legendary Collection</span>
+  <span class="card-price">~$225.69</span>
+</div>
+<div class="card-tile" data-id="ecard1-9" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ecard1-9" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ecard1-9')">
+    <img class="card-img" src="https://images.pokemontcg.io/ecard1/9.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">9</span>
+  <span class="card-set-badge">Expedition Base Set</span>
+  <span class="card-price">~$799.69</span>
+</div>
+<div class="card-tile" data-id="ecard1-43" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ecard1-43" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ecard1-43')">
+    <img class="card-img" src="https://images.pokemontcg.io/ecard1/43.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">43</span>
+  <span class="card-set-badge">Expedition Base Set</span>
+  <span class="card-price">~$70.91</span>
+</div>
+<div class="card-tile" data-id="ex3-90" data-name="dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex3-90" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex3-90')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex3/90.png" alt="Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite ex</span>
+  <span class="card-num">90</span>
+  <span class="card-set-badge">Dragon</span>
+  <span class="card-price">~$519.67</span>
+</div>
+<div class="card-tile" data-id="ex7-15" data-name="dark dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex7-15" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex7-15')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex7/15.png" alt="Dark Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dark Dragonite</span>
+  <span class="card-num">15</span>
+  <span class="card-set-badge">Team Rocket Returns</span>
+  <span class="card-price">~$90.41</span>
+</div>
+<div class="card-tile" data-id="ex11-3" data-name="dragonite δ">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex11-3" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex11-3')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex11/3.png" alt="Dragonite δ" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite δ</span>
+  <span class="card-num">3</span>
+  <span class="card-set-badge">Delta Species</span>
+  <span class="card-price">~$207.79</span>
+</div>
+<div class="card-tile" data-id="ex15-91" data-name="dragonite ex δ">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="ex15-91" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('ex15-91')">
+    <img class="card-img" src="https://images.pokemontcg.io/ex15/91.png" alt="Dragonite ex δ" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite ex δ</span>
+  <span class="card-num">91</span>
+  <span class="card-set-badge">Dragon Frontiers</span>
+  <span class="card-price">~$237.00</span>
+</div>
+<div class="card-tile" data-id="dp6-2" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="dp6-2" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('dp6-2')">
+    <img class="card-img" src="https://images.pokemontcg.io/dp6/2.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">2</span>
+  <span class="card-set-badge">Legends Awakened</span>
+  <span class="card-price">~$117.31</span>
+</div>
+<div class="card-tile" data-id="pl3-56" data-name="dragonite fb">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pl3-56" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pl3-56')">
+    <img class="card-img" src="https://images.pokemontcg.io/pl3/56.png" alt="Dragonite FB" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite FB</span>
+  <span class="card-num">56</span>
+  <span class="card-set-badge">Supreme Victors</span>
+  <span class="card-price">~$13.31</span>
+</div>
+<div class="card-tile" data-id="hgss4-18" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="hgss4-18" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('hgss4-18')">
+    <img class="card-img" src="https://images.pokemontcg.io/hgss4/18.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">18</span>
+  <span class="card-set-badge">HS—Triumphant</span>
+  <span class="card-price">~$14.59</span>
+</div>
+<div class="card-tile" data-id="dv1-5" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="dv1-5" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('dv1-5')">
+    <img class="card-img" src="https://images.pokemontcg.io/dv1/5.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">5</span>
+  <span class="card-set-badge">Dragon Vault</span>
+  <span class="card-price">~$26.91</span>
+</div>
+<div class="card-tile" data-id="bw9-83" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="bw9-83" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('bw9-83')">
+    <img class="card-img" src="https://images.pokemontcg.io/bw9/83.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">83</span>
+  <span class="card-set-badge">Plasma Freeze</span>
+  <span class="card-price">~$20.85</span>
+</div>
+<div class="card-tile" data-id="xy3-74" data-name="dragonite-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy3-74" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy3-74')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy3/74.png" alt="Dragonite-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-EX</span>
+  <span class="card-num">74</span>
+  <span class="card-set-badge">Furious Fists</span>
+  <span class="card-price">~$19.32</span>
+</div>
+<div class="card-tile" data-id="xy3-108" data-name="dragonite-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy3-108" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy3-108')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy3/108.png" alt="Dragonite-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-EX</span>
+  <span class="card-num">108</span>
+  <span class="card-set-badge">Furious Fists</span>
+  <span class="card-price">~$118.46</span>
+</div>
+<div class="card-tile" data-id="xy6-51" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy6-51" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy6-51')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy6/51.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">51</span>
+  <span class="card-set-badge">Roaring Skies</span>
+  <span class="card-price">~$2.68</span>
+</div>
+<div class="card-tile" data-id="xy6-52" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy6-52" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy6-52')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy6/52.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">52</span>
+  <span class="card-set-badge">Roaring Skies</span>
+  <span class="card-price">~$26.60</span>
+</div>
+<div class="card-tile" data-id="xy12-72" data-name="dragonite-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy12-72" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy12-72')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy12/72.png" alt="Dragonite-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-EX</span>
+  <span class="card-num">72</span>
+  <span class="card-set-badge">Evolutions</span>
+  <span class="card-price">~$9.65</span>
+</div>
+<div class="card-tile" data-id="xy12-106" data-name="dragonite-ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="xy12-106" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('xy12-106')">
+    <img class="card-img" src="https://images.pokemontcg.io/xy12/106.png" alt="Dragonite-EX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-EX</span>
+  <span class="card-num">106</span>
+  <span class="card-set-badge">Evolutions</span>
+  <span class="card-price">~$52.98</span>
+</div>
+<div class="card-tile" data-id="smp-SM156" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="smp-SM156" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('smp-SM156')">
+    <img class="card-img" src="https://images.pokemontcg.io/smp/SM156.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">SM156</span>
+  <span class="card-set-badge">SM Black Star Promos</span>
+  <span class="card-price">~$83.67</span>
+</div>
+<div class="card-tile" data-id="sm1-96" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm1-96" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm1-96')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm1/96.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">96</span>
+  <span class="card-set-badge">Sun &amp; Moon</span>
+  <span class="card-price">~$4.11</span>
+</div>
+<div class="card-tile" data-id="sm75-37" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm75-37" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm75-37')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm75/37.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">37</span>
+  <span class="card-set-badge">Dragon Majesty</span>
+  <span class="card-price">~$21.99</span>
+</div>
+<div class="card-tile" data-id="sm75-67" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm75-67" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm75-67')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm75/67.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">67</span>
+  <span class="card-set-badge">Dragon Majesty</span>
+  <span class="card-price">~$60.90</span>
+</div>
+<div class="card-tile" data-id="sm9-119" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm9-119" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm9-119')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm9/119.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">119</span>
+  <span class="card-set-badge">Team Up</span>
+  <span class="card-price">~$5.81</span>
+</div>
+<div class="card-tile" data-id="sm11-151" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm11-151" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm11-151')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm11/151.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">151</span>
+  <span class="card-set-badge">Unified Minds</span>
+  <span class="card-price">~$4.76</span>
+</div>
+<div class="card-tile" data-id="sm11-152" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm11-152" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm11-152')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm11/152.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">152</span>
+  <span class="card-set-badge">Unified Minds</span>
+  <span class="card-price">~$16.99</span>
+</div>
+<div class="card-tile" data-id="sm11-229" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm11-229" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm11-229')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm11/229.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">229</span>
+  <span class="card-set-badge">Unified Minds</span>
+  <span class="card-price">~$42.91</span>
+</div>
+<div class="card-tile" data-id="sm11-248" data-name="dragonite-gx">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sm11-248" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sm11-248')">
+    <img class="card-img" src="https://images.pokemontcg.io/sm11/248.png" alt="Dragonite-GX" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite-GX</span>
+  <span class="card-num">248</span>
+  <span class="card-set-badge">Unified Minds</span>
+  <span class="card-price">~$121.38</span>
+</div>
+<div class="card-tile" data-id="swshp-SWSH154" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swshp-SWSH154" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swshp-SWSH154')">
+    <img class="card-img" src="https://images.pokemontcg.io/swshp/SWSH154.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">SWSH154</span>
+  <span class="card-set-badge">SWSH Black Star Promos</span>
+  <span class="card-price">~$6.52</span>
+</div>
+<div class="card-tile" data-id="swshp-SWSH235" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swshp-SWSH235" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swshp-SWSH235')">
+    <img class="card-img" src="https://images.pokemontcg.io/swshp/SWSH235.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">SWSH235</span>
+  <span class="card-set-badge">SWSH Black Star Promos</span>
+  <span class="card-price">~$7.62</span>
+</div>
+<div class="card-tile" data-id="swshp-SWSH236" data-name="dragonite vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swshp-SWSH236" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swshp-SWSH236')">
+    <img class="card-img" src="https://images.pokemontcg.io/swshp/SWSH236.png" alt="Dragonite VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite VSTAR</span>
+  <span class="card-num">SWSH236</span>
+  <span class="card-set-badge">SWSH Black Star Promos</span>
+  <span class="card-price">~$5.51</span>
+</div>
+<div class="card-tile" data-id="swsh7-191" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh7-191" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh7-191')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh7/191.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">191</span>
+  <span class="card-set-badge">Evolving Skies</span>
+  <span class="card-price">~$37.93</span>
+</div>
+<div class="card-tile" data-id="swsh7-192" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh7-192" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh7-192')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh7/192.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">192</span>
+  <span class="card-set-badge">Evolving Skies</span>
+  <span class="card-price">~$503.31</span>
+</div>
+<div class="card-tile" data-id="pgo-49" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pgo-49" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pgo-49')">
+    <img class="card-img" src="https://images.pokemontcg.io/pgo/49.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">49</span>
+  <span class="card-set-badge">Pokémon GO</span>
+  <span class="card-price">~$4.94</span>
+</div>
+<div class="card-tile" data-id="pgo-50" data-name="dragonite vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pgo-50" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pgo-50')">
+    <img class="card-img" src="https://images.pokemontcg.io/pgo/50.png" alt="Dragonite VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite VSTAR</span>
+  <span class="card-num">50</span>
+  <span class="card-set-badge">Pokémon GO</span>
+  <span class="card-price">~$3.47</span>
+</div>
+<div class="card-tile" data-id="pgo-76" data-name="dragonite v">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pgo-76" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pgo-76')">
+    <img class="card-img" src="https://images.pokemontcg.io/pgo/76.png" alt="Dragonite V" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite V</span>
+  <span class="card-num">76</span>
+  <span class="card-set-badge">Pokémon GO</span>
+  <span class="card-price">~$17.34</span>
+</div>
+<div class="card-tile" data-id="pgo-81" data-name="dragonite vstar">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="pgo-81" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('pgo-81')">
+    <img class="card-img" src="https://images.pokemontcg.io/pgo/81.png" alt="Dragonite VSTAR" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite VSTAR</span>
+  <span class="card-num">81</span>
+  <span class="card-set-badge">Pokémon GO</span>
+  <span class="card-price">~$50.89</span>
+</div>
+<div class="card-tile" data-id="swsh12-131" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="swsh12-131" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('swsh12-131')">
+    <img class="card-img" src="https://images.pokemontcg.io/swsh12/131.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">131</span>
+  <span class="card-set-badge">Silver Tempest</span>
+  <span class="card-price">~$1.73</span>
+</div>
+<div class="card-tile" data-id="sv3-159" data-name="dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sv3-159" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sv3-159')">
+    <img class="card-img" src="https://images.pokemontcg.io/sv3/159.png" alt="Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite ex</span>
+  <span class="card-num">159</span>
+  <span class="card-set-badge">Obsidian Flames</span>
+  <span class="card-price">~$2.54</span>
+</div>
+<div class="card-tile" data-id="sv3pt5-149" data-name="dragonite">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="sv3pt5-149" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('sv3pt5-149')">
+    <img class="card-img" src="https://images.pokemontcg.io/sv3pt5/149.png" alt="Dragonite" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Dragonite</span>
+  <span class="card-num">149</span>
+  <span class="card-set-badge">151</span>
+  <span class="card-price">~$1.89</span>
+</div>
+<div class="card-tile" data-id="me2pt5-152" data-name="mega dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="me2pt5-152" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('me2pt5-152')">
+    <img class="card-img" src="https://images.scrydex.com/pokemon/me2pt5-152/small" alt="Mega Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Mega Dragonite ex</span>
+  <span class="card-num">152</span>
+  <span class="card-set-badge">Ascended Heroes</span>
+  
+</div>
+<div class="card-tile" data-id="me2pt5-271" data-name="mega dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="me2pt5-271" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('me2pt5-271')">
+    <img class="card-img" src="https://images.scrydex.com/pokemon/me2pt5-271/small" alt="Mega Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Mega Dragonite ex</span>
+  <span class="card-num">271</span>
+  <span class="card-set-badge">Ascended Heroes</span>
+  
+</div>
+<div class="card-tile" data-id="me2pt5-290" data-name="mega dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="me2pt5-290" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('me2pt5-290')">
+    <img class="card-img" src="https://images.scrydex.com/pokemon/me2pt5-290/small" alt="Mega Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Mega Dragonite ex</span>
+  <span class="card-num">290</span>
+  <span class="card-set-badge">Ascended Heroes</span>
+  
+</div>
+<div class="card-tile" data-id="me2pt5-295" data-name="mega dragonite ex">
+  <label class="owned-check" title="Mark as owned" onclick="event.stopPropagation()">
+    <input type="checkbox" data-id="me2pt5-295" onchange="toggleOwned(this)">
+    <span class="checkmark">&#10003;</span>
+  </label>
+  <div class="card-img-wrap" onclick="openModal('me2pt5-295')">
+    <img class="card-img" src="https://images.scrydex.com/pokemon/me2pt5-295/small" alt="Mega Dragonite ex" loading="lazy"><div class="card-overlay">View details</div>
+  </div>
+  <span class="card-name">Mega Dragonite ex</span>
+  <span class="card-num">295</span>
+  <span class="card-set-badge">Ascended Heroes</span>
+  
+</div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">&#215;</button>
+    <div class="modal-inner">
+      <img class="modal-img" id="modal-img" src="" alt="">
+      <div class="modal-details">
+        <h2 id="modal-name"></h2>
+        <div class="modal-set-line" id="modal-set-line"></div>
+        <table class="price-table" id="modal-prices"></table>
+        <div class="modal-actions">
+          <a class="btn btn-ebay" id="modal-ebay" href="#" target="_blank" rel="noopener">Search eBay</a>
+          <a class="btn btn-bulba" id="modal-bulba" href="#" target="_blank" rel="noopener">Bulbapedia</a>
+          <button class="btn btn-owned" id="modal-owned-btn" onclick="toggleOwnedFromModal()">Mark Owned</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CARDS = {"basep-5":{"id":"basep-5","name":"Dragonite","number":"5","set":"Wizards Black Star Promos","imgLarge":"https://images.pokemontcg.io/basep/5_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Wizards+Black+Star+Promos+5","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Wizards+Black+Star+Promos+5&ns0=1","prices":{"normal":{"low":38.7,"mid":50.0,"high":154.95,"market":69.81,"directLow":109.98}}},"base3-4":{"id":"base3-4","name":"Dragonite","number":"4","set":"Fossil","imgLarge":"https://images.pokemontcg.io/base3/4_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Fossil+4","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Fossil+4&ns0=1","prices":{"1stEditionHolofoil":{"low":300.0,"mid":399.99,"high":963.69,"market":413.02,"directLow":null},"unlimitedHolofoil":{"low":107.23,"mid":149.99,"high":973.98,"market":190.47,"directLow":null}}},"base3-19":{"id":"base3-19","name":"Dragonite","number":"19","set":"Fossil","imgLarge":"https://images.pokemontcg.io/base3/19_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Fossil+19","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Fossil+19&ns0=1","prices":{"1stEdition":{"low":59.49,"mid":119.99,"high":511.58,"market":85.89,"directLow":149.27},"unlimited":{"low":17.21,"mid":24.3,"high":152.98,"market":25.49,"directLow":149.81}}},"base5-5":{"id":"base5-5","name":"Dark Dragonite","number":"5","set":"Team Rocket","imgLarge":"https://images.pokemontcg.io/base5/5_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dark+Dragonite+Team+Rocket+5","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dark+Dragonite+Team+Rocket+5&ns0=1","prices":{"1stEditionHolofoil":{"low":400.0,"mid":650.0,"high":999.99,"market":402.41,"directLow":null},"unlimitedHolofoil":{"low":145.99,"mid":210.49,"high":9999.0,"market":171.93,"directLow":null}}},"base5-22":{"id":"base5-22","name":"Dark Dragonite","number":"22","set":"Team Rocket","imgLarge":"https://images.pokemontcg.io/base5/22_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dark+Dragonite+Team+Rocket+22","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dark+Dragonite+Team+Rocket+22&ns0=1","prices":{"1stEdition":{"low":62.96,"mid":104.95,"high":939.1,"market":64.11,"directLow":null},"unlimited":{"low":18.26,"mid":33.57,"high":9999.0,"market":32.09,"directLow":64.93}}},"neo4-14":{"id":"neo4-14","name":"Light Dragonite","number":"14","set":"Neo Destiny","imgLarge":"https://images.pokemontcg.io/neo4/14_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Light+Dragonite+Neo+Destiny+14","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Light+Dragonite+Neo+Destiny+14&ns0=1","prices":{"unlimitedHolofoil":{"low":203.59,"mid":391.7,"high":9999.0,"market":350.12,"directLow":null}}},"base6-5":{"id":"base6-5","name":"Dark Dragonite","number":"5","set":"Legendary Collection","imgLarge":"https://images.pokemontcg.io/base6/5_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dark+Dragonite+Legendary+Collection+5","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dark+Dragonite+Legendary+Collection+5&ns0=1","prices":{"holofoil":{"low":312.47,"mid":357.4,"high":402.32,"market":225.69,"directLow":null}}},"ecard1-9":{"id":"ecard1-9","name":"Dragonite","number":"9","set":"Expedition Base Set","imgLarge":"https://images.pokemontcg.io/ecard1/9_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Expedition+Base+Set+9","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Expedition+Base+Set+9&ns0=1","prices":{"holofoil":{"low":695.0,"mid":834.37,"high":916.27,"market":799.69,"directLow":916.27},"reverseHolofoil":{"low":149.99,"mid":350.0,"high":3009.72,"market":229.99,"directLow":3009.72}}},"ecard1-43":{"id":"ecard1-43","name":"Dragonite","number":"43","set":"Expedition Base Set","imgLarge":"https://images.pokemontcg.io/ecard1/43_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Expedition+Base+Set+43","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Expedition+Base+Set+43&ns0=1","prices":{"normal":{"low":614.88,"mid":629.83,"high":644.78,"market":70.91,"directLow":null},"reverseHolofoil":{"low":94.99,"mid":95.97,"high":250.0,"market":200.0,"directLow":null}}},"ex3-90":{"id":"ex3-90","name":"Dragonite ex","number":"90","set":"Dragon","imgLarge":"https://images.pokemontcg.io/ex3/90_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+ex+Dragon+90","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+ex+Dragon+90&ns0=1","prices":{"holofoil":{"low":359.99,"mid":400.0,"high":750.0,"market":519.67,"directLow":null}}},"ex7-15":{"id":"ex7-15","name":"Dark Dragonite","number":"15","set":"Team Rocket Returns","imgLarge":"https://images.pokemontcg.io/ex7/15_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dark+Dragonite+Team+Rocket+Returns+15","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dark+Dragonite+Team+Rocket+Returns+15&ns0=1","prices":{"normal":{"low":69.95,"mid":95.0,"high":958.8,"market":90.41,"directLow":null},"reverseHolofoil":{"low":249.98,"mid":249.99,"high":249.99,"market":420.0,"directLow":null}}},"ex11-3":{"id":"ex11-3","name":"Dragonite \u03b4","number":"3","set":"Delta Species","imgLarge":"https://images.pokemontcg.io/ex11/3_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+%CE%B4+Delta+Species+3","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+%CE%B4+Delta+Species+3&ns0=1","prices":{"holofoil":{"low":399.98,"mid":461.29,"high":522.59,"market":207.79,"directLow":null}}},"ex15-91":{"id":"ex15-91","name":"Dragonite ex \u03b4","number":"91","set":"Dragon Frontiers","imgLarge":"https://images.pokemontcg.io/ex15/91_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+ex+%CE%B4+Dragon+Frontiers+91","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+ex+%CE%B4+Dragon+Frontiers+91&ns0=1","prices":{"holofoil":{"low":82.19,"mid":98.68,"high":159.99,"market":237.0,"directLow":null}}},"dp6-2":{"id":"dp6-2","name":"Dragonite","number":"2","set":"Legends Awakened","imgLarge":"https://images.pokemontcg.io/dp6/2_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Legends+Awakened+2","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Legends+Awakened+2&ns0=1","prices":{"holofoil":{"low":127.65,"mid":308.03,"high":1367.27,"market":117.31,"directLow":1367.25},"reverseHolofoil":{"low":84.99,"mid":95.0,"high":950.0,"market":167.19,"directLow":null}}},"pl3-56":{"id":"pl3-56","name":"Dragonite FB","number":"56","set":"Supreme Victors","imgLarge":"https://images.pokemontcg.io/pl3/56_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+FB+Supreme+Victors+56","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+FB+Supreme+Victors+56&ns0=1","prices":{"normal":{"low":14.99,"mid":20.0,"high":509.9,"market":13.31,"directLow":null},"reverseHolofoil":{"low":19.99,"mid":554.99,"high":1385.69,"market":25.01,"directLow":1259.72}}},"hgss4-18":{"id":"hgss4-18","name":"Dragonite","number":"18","set":"HS\u2014Triumphant","imgLarge":"https://images.pokemontcg.io/hgss4/18_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+HS%E2%80%94Triumphant+18","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+HS%E2%80%94Triumphant+18&ns0=1","prices":{"normal":{"low":11.0,"mid":19.95,"high":119.9,"market":14.59,"directLow":null},"reverseHolofoil":{"low":77.69,"mid":199.99,"high":499.9,"market":131.06,"directLow":null}}},"dv1-5":{"id":"dv1-5","name":"Dragonite","number":"5","set":"Dragon Vault","imgLarge":"https://images.pokemontcg.io/dv1/5_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Dragon+Vault+5","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Dragon+Vault+5&ns0=1","prices":{"holofoil":{"low":24.99,"mid":35.28,"high":294.6,"market":26.91,"directLow":294.6}}},"bw9-83":{"id":"bw9-83","name":"Dragonite","number":"83","set":"Plasma Freeze","imgLarge":"https://images.pokemontcg.io/bw9/83_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Plasma+Freeze+83","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Plasma+Freeze+83&ns0=1","prices":{"holofoil":{"low":19.99,"mid":23.95,"high":99.0,"market":20.85,"directLow":null},"reverseHolofoil":{"low":49.95,"mid":69.37,"high":298.38,"market":37.23,"directLow":49.95}}},"xy3-74":{"id":"xy3-74","name":"Dragonite-EX","number":"74","set":"Furious Fists","imgLarge":"https://images.pokemontcg.io/xy3/74_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-EX+Furious+Fists+74","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-EX+Furious+Fists+74&ns0=1","prices":{"holofoil":{"low":3.75,"mid":16.99,"high":78.91,"market":19.32,"directLow":20.49}}},"xy3-108":{"id":"xy3-108","name":"Dragonite-EX","number":"108","set":"Furious Fists","imgLarge":"https://images.pokemontcg.io/xy3/108_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-EX+Furious+Fists+108","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-EX+Furious+Fists+108&ns0=1","prices":{"holofoil":{"low":84.8,"mid":115.0,"high":1854.3,"market":118.46,"directLow":1854.3}}},"xy6-51":{"id":"xy6-51","name":"Dragonite","number":"51","set":"Roaring Skies","imgLarge":"https://images.pokemontcg.io/xy6/51_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Roaring+Skies+51","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Roaring+Skies+51&ns0=1","prices":{"normal":{"low":1.67,"mid":2.89,"high":24.99,"market":2.68,"directLow":null},"reverseHolofoil":{"low":7.0,"mid":11.93,"high":71.2,"market":9.53,"directLow":null}}},"xy6-52":{"id":"xy6-52","name":"Dragonite","number":"52","set":"Roaring Skies","imgLarge":"https://images.pokemontcg.io/xy6/52_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Roaring+Skies+52","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Roaring+Skies+52&ns0=1","prices":{"holofoil":{"low":9.75,"mid":26.6,"high":107.06,"market":26.6,"directLow":24.99},"reverseHolofoil":{"low":15.26,"mid":30.0,"high":322.3,"market":26.92,"directLow":null}}},"xy12-72":{"id":"xy12-72","name":"Dragonite-EX","number":"72","set":"Evolutions","imgLarge":"https://images.pokemontcg.io/xy12/72_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-EX+Evolutions+72","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-EX+Evolutions+72&ns0=1","prices":{"holofoil":{"low":5.5,"mid":9.97,"high":4321.0,"market":9.65,"directLow":14.65}}},"xy12-106":{"id":"xy12-106","name":"Dragonite-EX","number":"106","set":"Evolutions","imgLarge":"https://images.pokemontcg.io/xy12/106_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-EX+Evolutions+106","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-EX+Evolutions+106&ns0=1","prices":{"holofoil":{"low":38.16,"mid":52.0,"high":100.0,"market":52.98,"directLow":42.91}}},"smp-SM156":{"id":"smp-SM156","name":"Dragonite-GX","number":"SM156","set":"SM Black Star Promos","imgLarge":"https://images.pokemontcg.io/smp/SM156_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+SM+Black+Star+Promos+SM156","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+SM+Black+Star+Promos+SM156&ns0=1","prices":{"holofoil":{"low":73.25,"mid":113.5,"high":870.9,"market":83.67,"directLow":78.95}}},"sm1-96":{"id":"sm1-96","name":"Dragonite","number":"96","set":"Sun & Moon","imgLarge":"https://images.pokemontcg.io/sm1/96_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Sun+%26+Moon+96","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Sun+%26+Moon+96&ns0=1","prices":{"holofoil":{"low":1.75,"mid":4.0,"high":6.52,"market":4.11,"directLow":null},"reverseHolofoil":{"low":1.24,"mid":2.45,"high":19.98,"market":2.21,"directLow":null}}},"sm75-37":{"id":"sm75-37","name":"Dragonite-GX","number":"37","set":"Dragon Majesty","imgLarge":"https://images.pokemontcg.io/sm75/37_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+Dragon+Majesty+37","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+Dragon+Majesty+37&ns0=1","prices":{"holofoil":{"low":20.38,"mid":26.39,"high":192.32,"market":21.99,"directLow":192.32}}},"sm75-67":{"id":"sm75-67","name":"Dragonite-GX","number":"67","set":"Dragon Majesty","imgLarge":"https://images.pokemontcg.io/sm75/67_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+Dragon+Majesty+67","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+Dragon+Majesty+67&ns0=1","prices":{"holofoil":{"low":79.99,"mid":93.0,"high":560.24,"market":60.9,"directLow":null}}},"sm9-119":{"id":"sm9-119","name":"Dragonite","number":"119","set":"Team Up","imgLarge":"https://images.pokemontcg.io/sm9/119_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Team+Up+119","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Team+Up+119&ns0=1","prices":{"holofoil":{"low":3.99,"mid":7.28,"high":49.96,"market":5.81,"directLow":39.95},"reverseHolofoil":{"low":6.0,"mid":7.99,"high":54.79,"market":6.14,"directLow":54.79}}},"sm11-151":{"id":"sm11-151","name":"Dragonite","number":"151","set":"Unified Minds","imgLarge":"https://images.pokemontcg.io/sm11/151_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Unified+Minds+151","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Unified+Minds+151&ns0=1","prices":{"reverseHolofoil":{"low":5.99,"mid":8.9,"high":62.5,"market":7.63,"directLow":null},"normal":{"low":3.43,"mid":5.05,"high":48.6,"market":4.76,"directLow":null}}},"sm11-152":{"id":"sm11-152","name":"Dragonite-GX","number":"152","set":"Unified Minds","imgLarge":"https://images.pokemontcg.io/sm11/152_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+Unified+Minds+152","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+Unified+Minds+152&ns0=1","prices":{"holofoil":{"low":11.98,"mid":23.76,"high":104.59,"market":16.99,"directLow":49.99}}},"sm11-229":{"id":"sm11-229","name":"Dragonite-GX","number":"229","set":"Unified Minds","imgLarge":"https://images.pokemontcg.io/sm11/229_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+Unified+Minds+229","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+Unified+Minds+229&ns0=1","prices":{"holofoil":{"low":49.0,"mid":68.99,"high":649.5,"market":42.91,"directLow":74.98}}},"sm11-248":{"id":"sm11-248","name":"Dragonite-GX","number":"248","set":"Unified Minds","imgLarge":"https://images.pokemontcg.io/sm11/248_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite-GX+Unified+Minds+248","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite-GX+Unified+Minds+248&ns0=1","prices":{"holofoil":{"low":127.0,"mid":170.97,"high":1129.5,"market":121.38,"directLow":null}}},"swshp-SWSH154":{"id":"swshp-SWSH154","name":"Dragonite V","number":"SWSH154","set":"SWSH Black Star Promos","imgLarge":"https://images.pokemontcg.io/swshp/SWSH154_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+SWSH+Black+Star+Promos+SWSH154","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+SWSH+Black+Star+Promos+SWSH154&ns0=1","prices":{"holofoil":{"low":5.0,"mid":6.99,"high":9999.0,"market":6.52,"directLow":5.41}}},"swshp-SWSH235":{"id":"swshp-SWSH235","name":"Dragonite V","number":"SWSH235","set":"SWSH Black Star Promos","imgLarge":"https://images.pokemontcg.io/swshp/SWSH235_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+SWSH+Black+Star+Promos+SWSH235","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+SWSH+Black+Star+Promos+SWSH235&ns0=1","prices":{"holofoil":{"low":2.54,"mid":8.02,"high":75.0,"market":7.62,"directLow":7.95}}},"swshp-SWSH236":{"id":"swshp-SWSH236","name":"Dragonite VSTAR","number":"SWSH236","set":"SWSH Black Star Promos","imgLarge":"https://images.pokemontcg.io/swshp/SWSH236_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+VSTAR+SWSH+Black+Star+Promos+SWSH236","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+VSTAR+SWSH+Black+Star+Promos+SWSH236&ns0=1","prices":{"holofoil":{"low":4.0,"mid":6.76,"high":75.0,"market":5.51,"directLow":6.42}}},"swsh7-191":{"id":"swsh7-191","name":"Dragonite V","number":"191","set":"Evolving Skies","imgLarge":"https://images.pokemontcg.io/swsh7/191_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+Evolving+Skies+191","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+Evolving+Skies+191&ns0=1","prices":{"holofoil":{"low":35.0,"mid":48.47,"high":199.31,"market":37.93,"directLow":35.0}}},"swsh7-192":{"id":"swsh7-192","name":"Dragonite V","number":"192","set":"Evolving Skies","imgLarge":"https://images.pokemontcg.io/swsh7/192_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+Evolving+Skies+192","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+Evolving+Skies+192&ns0=1","prices":{"holofoil":{"low":450.0,"mid":600.0,"high":2500.0,"market":503.31,"directLow":680.0}}},"pgo-49":{"id":"pgo-49","name":"Dragonite V","number":"49","set":"Pok\u00e9mon GO","imgLarge":"https://images.pokemontcg.io/pgo/49_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+Pok%C3%A9mon+GO+49","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+Pok%C3%A9mon+GO+49&ns0=1","prices":{"holofoil":{"low":3.8,"mid":5.13,"high":4321.0,"market":4.94,"directLow":4.83}}},"pgo-50":{"id":"pgo-50","name":"Dragonite VSTAR","number":"50","set":"Pok\u00e9mon GO","imgLarge":"https://images.pokemontcg.io/pgo/50_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+VSTAR+Pok%C3%A9mon+GO+50","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+VSTAR+Pok%C3%A9mon+GO+50&ns0=1","prices":{"holofoil":{"low":2.6,"mid":4.0,"high":100.0,"market":3.47,"directLow":5.99}}},"pgo-76":{"id":"pgo-76","name":"Dragonite V","number":"76","set":"Pok\u00e9mon GO","imgLarge":"https://images.pokemontcg.io/pgo/76_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+V+Pok%C3%A9mon+GO+76","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+V+Pok%C3%A9mon+GO+76&ns0=1","prices":{"holofoil":{"low":13.0,"mid":18.19,"high":1000.0,"market":17.34,"directLow":17.55}}},"pgo-81":{"id":"pgo-81","name":"Dragonite VSTAR","number":"81","set":"Pok\u00e9mon GO","imgLarge":"https://images.pokemontcg.io/pgo/81_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+VSTAR+Pok%C3%A9mon+GO+81","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+VSTAR+Pok%C3%A9mon+GO+81&ns0=1","prices":{"holofoil":{"low":46.68,"mid":52.5,"high":420.0,"market":50.89,"directLow":null}}},"swsh12-131":{"id":"swsh12-131","name":"Dragonite","number":"131","set":"Silver Tempest","imgLarge":"https://images.pokemontcg.io/swsh12/131_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+Silver+Tempest+131","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+Silver+Tempest+131&ns0=1","prices":{"holofoil":{"low":0.2,"mid":1.35,"high":26.3,"market":1.73,"directLow":3.95},"reverseHolofoil":{"low":0.69,"mid":1.5,"high":19.98,"market":1.76,"directLow":null}}},"sv3-159":{"id":"sv3-159","name":"Dragonite ex","number":"159","set":"Obsidian Flames","imgLarge":"https://images.pokemontcg.io/sv3/159_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+ex+Obsidian+Flames+159","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+ex+Obsidian+Flames+159&ns0=1","prices":{"holofoil":{"low":1.46,"mid":2.71,"high":19.99,"market":2.54,"directLow":2.54}}},"sv3pt5-149":{"id":"sv3pt5-149","name":"Dragonite","number":"149","set":"151","imgLarge":"https://images.pokemontcg.io/sv3pt5/149_hires.png","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Dragonite+151+149","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Dragonite+151+149&ns0=1","prices":{"holofoil":{"low":0.19,"mid":1.23,"high":99.0,"market":1.89,"directLow":2.0},"reverseHolofoil":{"low":1.0,"mid":3.5,"high":10000.0,"market":3.43,"directLow":3.8}}},"me2pt5-152":{"id":"me2pt5-152","name":"Mega Dragonite ex","number":"152","set":"Ascended Heroes","imgLarge":"https://images.scrydex.com/pokemon/me2pt5-152/large","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Mega+Dragonite+ex+Ascended+Heroes+152","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Mega+Dragonite+ex+Ascended+Heroes+152&ns0=1","prices":{}},"me2pt5-271":{"id":"me2pt5-271","name":"Mega Dragonite ex","number":"271","set":"Ascended Heroes","imgLarge":"https://images.scrydex.com/pokemon/me2pt5-271/large","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Mega+Dragonite+ex+Ascended+Heroes+271","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Mega+Dragonite+ex+Ascended+Heroes+271&ns0=1","prices":{}},"me2pt5-290":{"id":"me2pt5-290","name":"Mega Dragonite ex","number":"290","set":"Ascended Heroes","imgLarge":"https://images.scrydex.com/pokemon/me2pt5-290/large","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Mega+Dragonite+ex+Ascended+Heroes+290","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Mega+Dragonite+ex+Ascended+Heroes+290&ns0=1","prices":{}},"me2pt5-295":{"id":"me2pt5-295","name":"Mega Dragonite ex","number":"295","set":"Ascended Heroes","imgLarge":"https://images.scrydex.com/pokemon/me2pt5-295/large","ebay":"https://www.ebay.com/sch/i.html?_nkw=pokemon+Mega+Dragonite+ex+Ascended+Heroes+295","bulba":"https://bulbapedia.bulbagarden.net/w/index.php?search=Mega+Dragonite+ex+Ascended+Heroes+295&ns0=1","prices":{}}};
+const FINISH_LABELS = {"1stEditionHolofoil":"1st Ed. Holo","unlimitedHolofoil":"Unlimited Holo","holofoil":"Holofoil","1stEdition":"1st Edition","unlimited":"Unlimited","normal":"Normal","reverseHolofoil":"Reverse Holo"};
+let currentModalId = null;
+
+function storageKey() { return 'owned_dragonite_—_all_tcg_cards'; }
+function getOwned() { try { return JSON.parse(localStorage.getItem(storageKey()) || '{}'); } catch { return {}; } }
+function saveOwned(o) { localStorage.setItem(storageKey(), JSON.stringify(o)); }
+
+(function init() {
+  const owned = getOwned();
+  document.querySelectorAll('.card-tile').forEach(t => {
+    if (owned[t.dataset.id]) {
+      t.classList.add('owned');
+      t.querySelector('input[type=checkbox]').checked = true;
+    }
+  });
+  updateStats();
+})();
+
+function toggleOwned(cb) {
+  const id = cb.dataset.id;
+  const owned = getOwned();
+  if (cb.checked) owned[id] = true; else delete owned[id];
+  saveOwned(owned);
+  document.querySelector(`.card-tile[data-id="${id}"]`).classList.toggle('owned', cb.checked);
+  if (currentModalId === id) syncModalBtn(cb.checked);
+  updateStats();
+}
+
+function toggleOwnedFromModal() {
+  if (!currentModalId) return;
+  const cb = document.querySelector(`input[data-id="${currentModalId}"]`);
+  if (cb) { cb.checked = !cb.checked; toggleOwned(cb); }
+}
+
+function updateStats() {
+  const tiles = document.querySelectorAll('.card-tile:not(.hidden)');
+  const owned = getOwned();
+  const n = [...tiles].filter(t => owned[t.dataset.id]).length;
+  document.getElementById('stats').textContent = `${n} / ${tiles.length} owned`;
+}
+
+function filterCards(q) {
+  const query = q.toLowerCase().trim();
+  const unownedOnly = document.getElementById('unowned-only').checked;
+  const owned = getOwned();
+  document.querySelectorAll('.card-tile').forEach(t => {
+    const nameMatch = !query || t.dataset.name.includes(query);
+    const hide = !nameMatch || (unownedOnly && owned[t.dataset.id]);
+    t.classList.toggle('hidden', hide);
+  });
+  updateStats();
+}
+
+function openModal(id) {
+  const c = CARDS[id];
+  if (!c) return;
+  currentModalId = id;
+  const img = document.getElementById('modal-img');
+  img.src = c.imgLarge || '';
+  img.style.display = c.imgLarge ? '' : 'none';
+  document.getElementById('modal-name').textContent = c.name;
+  document.getElementById('modal-set-line').textContent = `${c.set} · #${c.number}`;
+  document.getElementById('modal-ebay').href = c.ebay;
+  document.getElementById('modal-bulba').href = c.bulba;
+  const finishes = Object.keys(c.prices).filter(f => Object.values(c.prices[f]||{}).some(v => v));
+  document.getElementById('modal-prices').innerHTML = finishes.length
+    ? '<tr><th>Finish</th><th>Low</th><th>Market</th><th>High</th></tr>' +
+      finishes.map(f => {
+        const p = c.prices[f] || {};
+        const $ = v => v ? '$' + v.toFixed(2) : '—';
+        return `<tr><td class="finish-label">${FINISH_LABELS[f]||f}</td><td>${$(p.low)}</td><td>${$(p.market)}</td><td>${$(p.high)}</td></tr>`;
+      }).join('')
+    : '<tr><td colspan="4" style="color:#bbb;font-size:.78rem">No price data</td></tr>';
+  syncModalBtn(!!getOwned()[id]);
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function syncModalBtn(owned) {
+  const btn = document.getElementById('modal-owned-btn');
+  btn.textContent = owned ? 'Owned ✓' : 'Mark Owned';
+  btn.classList.toggle('active', owned);
+}
+
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+  currentModalId = null;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function exportCSV() {
+  const owned = getOwned();
+  const rows = [['Card ID','Owned','Card Name','Set','Number']];
+  Object.values(CARDS).forEach(c => {
+    rows.push([c.id, owned[c.id] ? 'Y' : 'N', c.name, c.set, c.number]);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'dragonite_owned.csv';
+  a.click();
+}
+
+function importCSV(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim().toLowerCase());
+    const idCol    = headers.indexOf('card id');
+    const ownedCol = headers.indexOf('owned');
+    if (idCol === -1 || ownedCol === -1) {
+      alert('CSV must have "Card ID" and "Owned" columns.');
+      return;
+    }
+    const owned = {};
+    lines.slice(1).forEach(line => {
+      const cols = line.split(',').map(v => v.replace(/^"|"$/g,'').trim());
+      const id  = cols[idCol];
+      const val = cols[ownedCol].toUpperCase();
+      if (id && (val === 'Y' || val === 'YES' || val === '1' || val === 'TRUE')) owned[id] = true;
+    });
+    saveOwned(owned);
+    document.querySelectorAll('.card-tile').forEach(t => {
+      const o = !!owned[t.dataset.id];
+      t.classList.toggle('owned', o);
+      t.querySelector('input[type=checkbox]').checked = o;
+    });
+    updateStats();
+    alert(`Imported ${Object.keys(owned).length} owned cards.`);
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+</script>
+</body>
+</html>
