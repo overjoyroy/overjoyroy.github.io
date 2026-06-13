@@ -19,6 +19,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 /* ── Top bar ── */
 .topbar{background:var(--dark);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.topbar-brand{display:flex;align-items:center;gap:9px}
+.topbar-card-icon{height:36px;width:auto;border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.4);flex-shrink:0}
 .topbar-title{font-size:.95rem;font-weight:700;white-space:nowrap}
 .tab-bar{display:flex;gap:3px;flex:1;justify-content:center;flex-wrap:wrap}
 .tab-btn{background:transparent;color:rgba(255,255,255,.6);border:none;padding:5px 13px;border-radius:18px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
@@ -192,7 +194,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <div id="app" class="hidden">
 
   <div class="topbar">
-    <span class="topbar-title">Porydex</span>
+    <div class="topbar-brand">
+      <img class="topbar-card-icon" src="https://images.pokemontcg.io/basep/15.png" alt="Cool Porygon">
+      <span class="topbar-title">Porydex</span>
+    </div>
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="checklist">My Checklist</button>
       <button class="tab-btn" data-tab="search">Search</button>
