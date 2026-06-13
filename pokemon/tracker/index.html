@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Porydex</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--dark:#1a1a2e;--green:#2ecc71;--bg:#f0f0f5;--shadow:0 2px 8px rgba(0,0,0,.12)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#222;min-height:100vh}
+
+/* ── Sign-in ── */
+#signin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:var(--dark);color:#fff;gap:22px;text-align:center;padding:24px}
+#signin-screen h1{font-size:2rem}
+#signin-screen p{opacity:.65;max-width:340px}
+#google-signin-btn{background:#fff;color:#333;border:none;padding:13px 28px;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
+#google-signin-btn:hover{background:#f0f0f0}
+#signin-error{color:#ff8a80;font-size:.85rem;min-height:1.2em}
+
+/* ── Top bar ── */
+.topbar{background:var(--dark);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.topbar-title{font-size:.95rem;font-weight:700;white-space:nowrap}
+.tab-bar{display:flex;gap:3px;flex:1;justify-content:center;flex-wrap:wrap}
+.tab-btn{background:transparent;color:rgba(255,255,255,.6);border:none;padding:5px 13px;border-radius:18px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:#fff}
+.tab-btn.active{background:rgba(255,255,255,.15);color:#fff}
+.auth-info{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.user-photo{width:26px;height:26px;border-radius:50%;object-fit:cover}
+.user-name{font-size:.78rem;opacity:.85}
+.sign-out-btn{background:transparent;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.2);padding:3px 9px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s}
+.sign-out-btn:hover{color:#fff;border-color:rgba(255,255,255,.6)}
+
+/* ── Sub-bar ── */
+.subbar{background:#fff;padding:9px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #e5e5e5;position:sticky;top:52px;z-index:90;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.subbar-search{flex:1;min-width:160px;padding:7px 14px;border-radius:18px;border:1px solid #ddd;font-size:.85rem;outline:none}
+.subbar-search:focus{border-color:#999}
+.subbar-stats{font-size:.74rem;color:#888;white-space:nowrap}
+.filter-toggle{font-size:.74rem;display:flex;align-items:center;gap:5px;cursor:pointer;color:#555;white-space:nowrap;user-select:none}
+.manage-sets-btn{background:var(--dark);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
+.manage-sets-btn:hover{background:#2a2a4e}
+
+/* ── Set picker ── */
+#set-picker{background:#fff;border-bottom:2px solid #e0e0e0;padding:16px;max-height:55vh;overflow-y:auto}
+#set-picker h3{font-size:.85rem;color:#555;margin-bottom:12px}
+.era-group{margin-bottom:13px}
+.era-group h4{font-size:.7rem;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.set-chips{display:flex;flex-wrap:wrap;gap:5px}
+.set-chip{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none}
+.set-chip.selected{background:var(--dark);color:#fff;border-color:var(--dark)}
+.set-picker-actions{display:flex;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #eee}
+#save-sets-btn{background:var(--dark);color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.82rem;cursor:pointer}
+#cancel-sets-btn{background:transparent;color:#888;border:1px solid #ddd;padding:8px 18px;border-radius:8px;font-size:.82rem;cursor:pointer}
+
+/* ── Set sections ── */
+.set-section{margin:16px}
+.set-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s}
+.set-header:hover{background:#2a2a4e}
+.set-header-left{display:flex;align-items:center;gap:9px}
+.toggle-icon{font-size:1rem;transition:transform .2s;display:inline-block}
+.set-section.collapsed .toggle-icon{transform:rotate(-90deg)}
+.set-name{font-weight:700;font-size:.9rem}
+.set-stats{font-size:.75rem;opacity:.75}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px;padding:12px 0}
+.set-section.collapsed .card-grid,.wantlist-item.collapsed .card-grid{display:none}
+
+/* ── Card tiles ── */
+.card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s}
+.card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.card-tile.owned{opacity:.5;outline:2px solid var(--green)}
+.card-tile.hidden{display:none!important}
+.card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
+.card-img{width:104px;height:auto;display:block;border-radius:6px}
+.no-img{width:104px;height:145px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:#bbb}
+.card-overlay{position:absolute;inset:0;background:rgba(0,0,0,.42);color:#fff;font-size:.7rem;font-weight:600;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;border-radius:6px}
+.card-img-wrap:hover .card-overlay{opacity:1}
+.card-name{font-size:.73rem;font-weight:600;line-height:1.3}
+.card-num{font-size:.64rem;color:#bbb}
+.card-price{font-size:.67rem;color:#2d8a4e;font-weight:700}
+.card-set-badge{font-size:.58rem;color:#ccc;line-height:1.3}
+
+/* ── Owned checkbox ── */
+.owned-check{position:absolute;top:6px;right:6px;cursor:pointer;z-index:2}
+.owned-check input{display:none}
+.checkmark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid #ddd;background:#fff;font-size:.68rem;color:transparent;transition:all .15s}
+.owned-check input:checked+.checkmark{background:var(--green);border-color:var(--green);color:#fff}
+.owned-check.readonly{pointer-events:none}
+
+/* ── Read-only banner ── */
+.readonly-banner{background:#e8f5e9;color:#2e7d32;padding:7px 16px;font-size:.75rem;text-align:center;border-bottom:1px solid #c8e6c9}
+
+/* ── Search tab ── */
+.search-panel{padding:14px 16px}
+.search-sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.pokemon-search-input{flex:1;min-width:200px;padding:9px 16px;border-radius:18px;border:1px solid #ddd;font-size:.9rem;outline:none}
+.pokemon-search-input:focus{border-color:#999}
+.search-hint{font-size:.76rem;color:#aaa;white-space:nowrap}
+.search-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px}
+.track-all-btn{width:100%;background:var(--dark);color:#fff;border:none;padding:7px;border-radius:7px;font-size:.72rem;cursor:pointer;margin-top:4px}
+.track-all-btn:hover{background:#2a2a4e}
+.track-all-btn.tracked{background:#2d8a4e}
+.search-empty{text-align:center;padding:60px 20px;color:#bbb;grid-column:1/-1}
+.search-empty h3{margin-bottom:8px;font-size:1rem}
+
+/* ── Want lists tab ── */
+.wantlists-header{padding:16px;display:flex;align-items:center;justify-content:space-between}
+.wantlists-header h2{font-size:.95rem;font-weight:700}
+.wantlist-empty{text-align:center;padding:50px 20px;color:#aaa}
+.wantlist-empty strong{color:#888}
+.wantlist-item{margin:0 16px 14px}
+.wantlist-item-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s}
+.wantlist-item-header:hover{background:#2a2a4e}
+.wantlist-item-header-left{display:flex;align-items:center;gap:9px}
+.wantlist-item.collapsed .toggle-icon{transform:rotate(-90deg)}
+.wantlist-name{font-weight:700;font-size:.9rem}
+.wantlist-progress{font-size:.75rem;opacity:.75}
+.wantlist-remove{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:3px 9px;border-radius:10px;font-size:.7rem;cursor:pointer}
+.wantlist-remove:hover{background:rgba(255,255,255,.22)}
+
+/* ── Friends tab ── */
+.friends-panel{padding:16px}
+.friends-panel h2{font-size:.95rem;font-weight:700;margin-bottom:14px}
+.friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
+.friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
+.friend-no-photo{width:38px;height:38px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.friend-info h3{font-size:.88rem;font-weight:600}
+.friend-info p{font-size:.74rem;color:#999}
+.back-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px}
+.back-btn{background:transparent;border:1px solid #ddd;color:#555;padding:4px 12px;border-radius:12px;font-size:.75rem;cursor:pointer}
+.back-btn:hover{background:#f5f5f5}
+.viewing-label{font-size:.82rem;color:#666}
+
+/* ── Import banner ── */
+#import-banner{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;margin:12px 16px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#import-banner p{font-size:.76rem;color:#666;flex:1}
+#import-file-input{display:none}
+.import-btn{background:#f9a825;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap}
+.import-dismiss{background:transparent;border:none;color:#bbb;font-size:.8rem;cursor:pointer;padding:2px 6px;line-height:1}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:14px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:22px;position:relative}
+.modal-close{position:absolute;top:10px;right:13px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#ccc;line-height:1}
+.modal-close:hover{color:#333}
+.modal-inner{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.modal-img{width:150px;border-radius:8px;flex-shrink:0}
+.modal-details{flex:1;min-width:150px}
+.modal-details h2{font-size:1rem;margin-bottom:3px}
+.modal-set-line{font-size:.77rem;color:#aaa;margin-bottom:10px}
+.price-table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:12px}
+.price-table th{text-align:left;color:#bbb;font-weight:600;padding:3px 5px 3px 0;border-bottom:1px solid #f0f0f0}
+.price-table td{padding:3px 5px 3px 0}
+.price-table tr:not(:last-child) td{border-bottom:1px solid #f8f8f8}
+.finish-label{font-weight:600;color:#555}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.btn{padding:8px 15px;border-radius:8px;font-size:.8rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;display:inline-block;text-align:center}
+.btn-ebay{background:#e53238;color:#fff}
+.btn-ebay:hover{background:#c0272d}
+.btn-bulba{background:#3b5fa0;color:#fff}
+.btn-bulba:hover{background:#2d4a80}
+.btn-owned{background:#eee;color:#333}
+.btn-owned.active{background:var(--green);color:#fff}
+
+/* ── Loading / util ── */
+.loading{text-align:center;padding:60px 20px;color:#bbb;font-size:.875rem}
+.spinner{width:28px;height:28px;border:3px solid #e5e5e5;border-top-color:var(--dark);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+
+@media(max-width:480px){
+  .topbar{padding:8px 12px}
+  .tab-btn{padding:4px 9px;font-size:.72rem}
+  .modal-img{width:120px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Sign-in screen ── -->
+<div id="signin-screen">
+  <h1>Porydex</h1>
+  <p>Track your collection, hunt for missing cards, and share progress with friends.</p>
+  <button id="google-signin-btn">
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908C16.658 12.015 17.64 9.707 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+    Sign in with Google
+  </button>
+  <p id="signin-error"></p>
+</div>
+
+<!-- ── Main app ── -->
+<div id="app" class="hidden">
+
+  <div class="topbar">
+    <span class="topbar-title">Porydex</span>
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="checklist">My Checklist</button>
+      <button class="tab-btn" data-tab="search">Search</button>
+      <button class="tab-btn" data-tab="wantlists">Want Lists</button>
+      <button class="tab-btn" data-tab="friends">Friends</button>
+    </div>
+    <div class="auth-info">
+      <img class="user-photo" id="user-photo" src="" alt="" hidden>
+      <span class="user-name" id="user-name"></span>
+      <button class="sign-out-btn" id="sign-out-btn">Sign out</button>
+    </div>
+  </div>
+
+  <!-- CHECKLIST -->
+  <div id="tab-checklist" class="tab-panel">
+    <div class="subbar">
+      <input class="subbar-search" id="checklist-filter" type="search" placeholder="Filter cards by name…">
+      <span class="subbar-stats" id="checklist-stats"></span>
+      <label class="filter-toggle"><input type="checkbox" id="missing-only-toggle"> Missing only</label>
+      <button class="manage-sets-btn" id="manage-sets-btn">Manage Sets</button>
+    </div>
+    <div id="set-picker" class="hidden">
+      <h3>Select the sets you want to track. Your selections sync to your account.</h3>
+      <div id="era-groups"></div>
+      <div class="set-picker-actions">
+        <button id="save-sets-btn">Save</button>
+        <button id="cancel-sets-btn">Cancel</button>
+      </div>
+    </div>
+    <div id="import-banner" class="hidden">
+      <p>Have <code>owned_cards.json</code> from the migration script? Import it once to seed your collection.</p>
+      <input type="file" id="import-file-input" accept=".json">
+      <button class="import-btn" id="import-trigger">Import JSON</button>
+      <button class="import-dismiss" id="import-dismiss">✕</button>
+    </div>
+    <div id="checklist-content">
+      <div class="loading"><div class="spinner"></div>Loading your collection…</div>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div id="tab-search" class="tab-panel hidden">
+    <div class="search-panel">
+      <div class="search-sub">
+        <input class="pokemon-search-input" id="pokemon-search-input" type="search"
+               placeholder="Search by Pokémon name (e.g. Dragonite)…" autocomplete="off">
+        <span class="search-hint" id="search-hint">Search across all TCG sets</span>
+      </div>
+      <div class="search-results-grid" id="search-results">
+        <div class="search-empty">
+          <h3>Search all Pokémon TCG cards</h3>
+          <p>Find every printing of any card across all sets.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WANT LISTS -->
+  <div id="tab-wantlists" class="tab-panel hidden">
+    <div class="wantlists-header"><h2>My Want Lists</h2></div>
+    <div id="wantlists-content">
+      <div class="wantlist-empty">
+        <p>No want lists yet.</p>
+        <p>Search for a Pokémon and click <strong>"Track all [Name]"</strong> to add one.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRIENDS -->
+  <div id="tab-friends" class="tab-panel hidden">
+    <div id="friends-list-view">
+      <div class="friends-panel">
+        <h2>Friends</h2>
+        <div id="friends-list-content">
+          <div class="loading"><div class="spinner"></div>Loading…</div>
+        </div>
+      </div>
+    </div>
+    <div id="friend-collection-view" class="hidden">
+      <div class="back-bar">
+        <button class="back-btn" id="back-to-friends">← Back</button>
+        <span class="viewing-label" id="viewing-friend-label"></span>
+      </div>
+      <div class="readonly-banner">Viewing read-only — this is their collection.</div>
+      <div class="subbar">
+        <input class="subbar-search" id="friend-filter" type="search" placeholder="Filter cards…">
+        <span class="subbar-stats" id="friend-stats"></span>
+        <label class="filter-toggle"><input type="checkbox" id="friend-missing-toggle"> Missing only</label>
+      </div>
+      <div id="friend-checklist-content"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Card detail modal -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <button class="modal-close" id="modal-close">×</button>
+    <div class="modal-inner">
+      <img class="modal-img" id="modal-img" src="" alt="">
+      <div class="modal-details">
+        <h2 id="modal-name"></h2>
+        <div class="modal-set-line" id="modal-set-line"></div>
+        <table class="price-table" id="modal-prices"></table>
+        <div class="modal-actions">
+          <a class="btn btn-ebay" id="modal-ebay" href="#" target="_blank" rel="noopener">Search eBay</a>
+          <a class="btn btn-bulba" id="modal-bulba" href="#" target="_blank" rel="noopener">Bulbapedia</a>
+          <button class="btn btn-owned" id="modal-owned-btn">Mark Owned</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="./firebase-config.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
