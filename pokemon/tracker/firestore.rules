@@ -6,23 +6,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User profile: owner reads/writes; any authenticated user can read
-    // (needed for the friends tab to load friend profiles)
+    // Public read so the app works for visitors who choose
+    // "Continue without signing in" — no auth required to view.
+    // Only the signed-in owner can write their own data.
     match /users/{uid} {
-      allow read:  if request.auth != null;
+      allow read:  if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Card collection: any authenticated user can read (for friends view)
-    // Only the owner can write their own collection
     match /collections/{uid} {
-      allow read:  if request.auth != null;
+      allow read:  if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Want lists: same pattern as collections
     match /wantlists/{uid} {
-      allow read:  if request.auth != null;
+      allow read:  if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
   }

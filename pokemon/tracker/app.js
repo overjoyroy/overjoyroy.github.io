@@ -54,6 +54,7 @@ const db    = initializeFirestore(fbApp, { localCache: persistentLocalCache() })
 // ─────────────────────────────────────────────────────────────────
 
 let currentUser    = null;
+let isGuest        = false;  // true for read-only anonymous sessions
 let trackedSets    = [];     // set IDs the user has chosen to track
 let collection     = {};     // { cardId: true } owned cards
 let wantlists      = {};     // { pokemonId: { displayName } }
@@ -102,13 +103,30 @@ document.getElementById('google-signin-btn').addEventListener('click', async () 
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (e) {
-    if (e.code !== 'auth/popup-closed-by-user') {
-      document.getElementById('signin-error').textContent = 'Sign-in failed. Please try again.';
-    }
+    if (e.code === 'auth/popup-closed-by-user') return;
+    console.error('[Porydex] Sign-in error:', e.code, e.message);
+    const msg = e.code === 'auth/unauthorized-domain'
+      ? `This domain (${location.hostname}) isn't authorized for sign-in yet. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
+      : `Sign-in failed (${e.code || 'unknown error'}). Please try again.`;
+    document.getElementById('signin-error').textContent = msg;
   }
 });
 
-document.getElementById('sign-out-btn').addEventListener('click', () => signOut(auth));
+// "Continue without signing in" — browse read-only, no Firebase auth session at all.
+document.getElementById('guest-signin-btn').addEventListener('click', async () => {
+  currentUser = null;
+  isGuest = true;
+  await bootApp();
+});
+
+document.getElementById('sign-out-btn').addEventListener('click', () => {
+  if (isGuest) {
+    teardown();
+    showSignin();
+  } else {
+    signOut(auth);
+  }
+});
 
 onAuthStateChanged(auth, async user => {
   if (!user) {
@@ -124,6 +142,7 @@ onAuthStateChanged(auth, async user => {
     return;
   }
   currentUser = user;
+  isGuest = false;
   console.info('[Tracker] signed in —', user.email, '| uid:', user.uid);
   if (!FRIENDS.some(f => f.uid === user.uid)) {
     console.info('[Tracker] To add this user to FRIENDS, paste:', `{ uid: '${user.uid}', displayName: '${user.displayName}' }`);
@@ -132,41 +151,77 @@ onAuthStateChanged(auth, async user => {
 });
 
 async function bootApp() {
-  // Populate auth bar
+  // Populate auth bar immediately (synchronous)
   const photo = document.getElementById('user-photo');
-  if (currentUser.photoURL) { photo.src = currentUser.photoURL; photo.hidden = false; }
-  document.getElementById('user-name').textContent = currentUser.displayName || currentUser.email;
+  if (isGuest) {
+    photo.hidden = true;
+    document.getElementById('user-name').textContent = 'Guest';
+    document.getElementById('sign-out-btn').textContent = 'Exit Guest Mode';
+  } else {
+    if (currentUser.photoURL) { photo.src = currentUser.photoURL; photo.hidden = false; }
+    else photo.hidden = true;
+    document.getElementById('user-name').textContent = currentUser.displayName || currentUser.email;
+    document.getElementById('sign-out-btn').textContent = 'Sign out';
+  }
 
-  // Upsert user profile (merge so trackedSets isn't overwritten)
-  await setDoc(doc(db, 'users', currentUser.uid), {
-    displayName: currentUser.displayName || '',
-    email:       currentUser.email,
-    photoURL:    currentUser.photoURL || '',
-  }, { merge: true });
-
-  // Load tracked sets
-  const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
-  trackedSets = userSnap.data()?.trackedSets || [];
-
-  // Start Firestore listeners
-  listenCollection();
-  listenWantlists();
-
-  // Show app
+  // Show the app shell right away — don't make the user wait for network
   document.getElementById('signin-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+
+  // Guests have no account — hide every write-capable control
+  document.getElementById('manage-sets-btn').classList.toggle('hidden', isGuest);
+  document.getElementById('modal-owned-btn').classList.toggle('hidden', isGuest);
+
+  if (isGuest) {
+    trackedSets = []; collection = {}; wantlists = {};
+    await fetchAllSets(); // warm the set list cache for Search/Friends
+    await renderChecklist();
+    return;
+  }
 
   if (!localStorage.getItem('import_dismissed')) {
     document.getElementById('import-banner').classList.remove('hidden');
   }
 
-  await renderChecklist();
+  // Render immediately from localStorage cache (stale-while-revalidate)
+  const cachedSets = JSON.parse(localStorage.getItem('porydex_tracked_sets') || 'null');
+  if (cachedSets) {
+    trackedSets = cachedSets;
+    renderChecklist(); // don't await — let it run while Firestore loads
+  }
+
+  // Kick off Firestore + set list fetch in parallel
+  const [userSnap] = await Promise.all([
+    getDoc(doc(db, 'users', currentUser.uid)),
+    setDoc(doc(db, 'users', currentUser.uid), {
+      displayName: currentUser.displayName || '',
+      email:       currentUser.email,
+      photoURL:    currentUser.photoURL || '',
+    }, { merge: true }),
+    fetchAllSets(), // warm the IndexedDB cache now
+  ]);
+
+  const freshSets = userSnap.data()?.trackedSets || [];
+
+  // Re-render only if tracked sets changed from the cached version
+  if (JSON.stringify(freshSets) !== JSON.stringify(trackedSets)) {
+    trackedSets = freshSets;
+    localStorage.setItem('porydex_tracked_sets', JSON.stringify(trackedSets));
+    await renderChecklist();
+  } else {
+    trackedSets = freshSets;
+    localStorage.setItem('porydex_tracked_sets', JSON.stringify(trackedSets));
+  }
+
+  // Start Firestore listeners
+  listenCollection();
+  listenWantlists();
 }
 
 function teardown() {
   if (collUnsub) { collUnsub(); collUnsub = null; }
   if (wlUnsub)   { wlUnsub();   wlUnsub  = null; }
-  currentUser = null; trackedSets = []; collection = {}; wantlists = {}; cardDataMap = {};
+  currentUser = null; isGuest = false; trackedSets = []; collection = {}; wantlists = {}; cardDataMap = {};
 }
 
 function showSignin() {
@@ -244,6 +299,7 @@ function syncTiles(cardId, owned) {
 
 async function saveTrackedSets(ids) {
   trackedSets = ids;
+  localStorage.setItem('porydex_tracked_sets', JSON.stringify(ids));
   await setDoc(doc(db, 'users', currentUser.uid), { trackedSets: ids }, { merge: true });
 }
 
@@ -268,28 +324,75 @@ window.removeFromWantlist = async function(pokemonId) {
 // ─────────────────────────────────────────────────────────────────
 // POKEMON TCG API + CACHE
 // ─────────────────────────────────────────────────────────────────
+// PERSISTENT CARD CACHE — IndexedDB, 7-day TTL
+// Avoids re-hitting the Pokemon TCG API every session.
+// ─────────────────────────────────────────────────────────────────
+
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+let _idb = null;
+
+function openCacheDB() {
+  if (_idb) return Promise.resolve(_idb);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('porydex-tcg-cache', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('cache');
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror = reject;
+  });
+}
+
+async function cacheGet(key) {
+  // L1: sessionStorage — synchronous, fast for same-session reads
+  const sess = sessionStorage.getItem(key);
+  if (sess) { try { return JSON.parse(sess); } catch (_) {} }
+
+  // L2: IndexedDB — persistent across sessions
+  try {
+    const db = await openCacheDB();
+    const entry = await new Promise((res, rej) => {
+      const req = db.transaction('cache').objectStore('cache').get(key);
+      req.onsuccess = e => res(e.target.result);
+      req.onerror = rej;
+    });
+    if (!entry) return null;
+    if (Date.now() - entry.ts > CACHE_TTL) return null;
+    // Promote to L1 so subsequent reads this session are instant
+    try { sessionStorage.setItem(key, JSON.stringify(entry.data)); } catch (_) {}
+    return entry.data;
+  } catch (_) { return null; }
+}
+
+function cacheSet(key, data) {
+  // Write to L1 synchronously so it's available immediately
+  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch (_) {}
+  // Write to L2 in the background — don't block the caller
+  openCacheDB().then(db => {
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').put({ data, ts: Date.now() }, key);
+  }).catch(() => {});
+}
 
 async function tcgFetch(url) {
   const key = 'tcg__' + url.replace(TCG_API, '').replace(/\W+/g, '_').slice(0, 180);
-  const hit = sessionStorage.getItem(key);
-  if (hit) return JSON.parse(hit);
+  const hit = await cacheGet(key);
+  if (hit) return hit;
   const res = await fetch(url);
   const data = await res.json();
-  try { sessionStorage.setItem(key, JSON.stringify(data)); } catch (_) { /* quota */ }
+  await cacheSet(key, data);
   return data;
 }
 
 async function fetchAllSets() {
   if (allSets) return allSets;
-  const data = await tcgFetch(`${TCG_API}/sets?pageSize=250&orderBy=releaseDate&select=id,name,series,releaseDate`);
+  const data = await tcgFetch(`${TCG_API}/sets?pageSize=250&orderBy=releaseDate&select=id,name,series,releaseDate,total`);
   allSets = data.data || [];
   return allSets;
 }
 
 async function fetchSetCards(setId) {
-  const key = `tcg__cards_${setId}`;
-  const hit = sessionStorage.getItem(key);
-  if (hit) return JSON.parse(hit);
+  const key = `cards_${setId}`;
+  const hit = await cacheGet(key);
+  if (hit) return hit;
   let cards = [], page = 1, total = Infinity;
   while (cards.length < total) {
     const data = await tcgFetch(
@@ -301,20 +404,20 @@ async function fetchSetCards(setId) {
     if (!data.data?.length) break;
     page++;
   }
-  try { sessionStorage.setItem(key, JSON.stringify(cards)); } catch (_) { /* quota */ }
+  await cacheSet(key, cards);
   return cards;
 }
 
 async function searchPokemon(query) {
-  const key = `tcg__search_${query.toLowerCase().replace(/\W+/g, '_')}`;
-  const hit = sessionStorage.getItem(key);
-  if (hit) return JSON.parse(hit);
+  const key = `search_${query.toLowerCase().replace(/\W+/g, '_')}`;
+  const hit = await cacheGet(key);
+  if (hit) return hit;
   const data = await tcgFetch(
     `${TCG_API}/cards?q=name:${encodeURIComponent('"' + query + '"')}&pageSize=50&orderBy=set.releaseDate` +
     `&select=id,name,number,set,images,tcgplayer`
   );
   const cards = data.data || [];
-  try { sessionStorage.setItem(key, JSON.stringify(cards)); } catch (_) { /* quota */ }
+  await cacheSet(key, cards);
   return cards;
 }
 
@@ -325,6 +428,7 @@ async function searchPokemon(query) {
 function cardTile(card, { readonly = false, showSet = false } = {}) {
   cardDataMap[card.id] = card;  // for modal lookups
   const owned  = !!collection[card.id];
+  const ro     = readonly || isGuest;
   const imgSrc = card.images?.small || '';
   const price  = bestPrice(card.tcgplayer?.prices);
   const img    = imgSrc
@@ -332,8 +436,8 @@ function cardTile(card, { readonly = false, showSet = false } = {}) {
     : `<div class="no-img">No image</div>`;
 
   return `<div class="card-tile${owned ? ' owned' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
-  <label class="owned-check${readonly ? ' readonly' : ''}">
-    <input type="checkbox" ${owned ? 'checked' : ''} ${readonly ? 'disabled' : ''}
+  <label class="owned-check${ro ? ' readonly' : ''}">
+    <input type="checkbox" ${owned ? 'checked' : ''} ${ro ? 'disabled' : ''}
            onchange="handleToggle(this,'${esc(card.id)}')">
     <span class="checkmark">✓</span>
   </label>
@@ -355,6 +459,12 @@ async function renderChecklist() {
   const el = document.getElementById('checklist-content');
 
   if (!trackedSets.length) {
+    if (isGuest) {
+      el.innerHTML = `<div class="loading">
+        <p style="color:#888">Sign in with Google to track your own collection.</p>
+      </div>`;
+      return;
+    }
     el.innerHTML = `<div class="loading">
       <p style="color:#888;margin-bottom:16px">Pick some sets to start tracking your collection.</p>
       <button onclick="openSetPicker()"
@@ -366,25 +476,34 @@ async function renderChecklist() {
     return;
   }
 
-  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cards…</div>';
+  // Render headers immediately using the cached set list — no per-set API calls yet
+  const allSetsData = await fetchAllSets();
+  const setMeta = Object.fromEntries(allSetsData.map(s => [s.id, s]));
 
   let html = '';
   for (const setId of trackedSets) {
-    const cards = await fetchSetCards(setId);
-    if (!cards.length) continue;
-    const setName = cards[0]?.set?.name || setId;
-    const tiles   = cards.map(c => cardTile(c)).join('');
-    html += setSection(setId, setName, cards.length, tiles);
+    const meta = setMeta[setId] || {};
+    const name  = meta.name || setId;
+    const total = meta.total || '?';
+    html += `<section class="set-section collapsed" data-set="${esc(setId)}" data-loaded="false">
+  <div class="set-header" onclick="toggleSection(this)">
+    <div class="set-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="set-name">${esc(name)}</span>
+    </div>
+    <span class="set-stats" data-set-id="${esc(setId)}">— / ${total} owned</span>
+  </div>
+  <div class="card-grid" data-set-grid="${esc(setId)}">
+    <div class="loading" style="grid-column:1/-1;padding:24px"><div class="spinner"></div></div>
+  </div>
+</section>`;
   }
 
-  el.innerHTML = html || '<div class="loading">No cards found. Try different sets.</div>';
-  applyChecklistFilters();
-  refreshStats();
+  el.innerHTML = html || '<div class="loading">No sets found.</div>';
 }
 
 function setSection(setId, setName, total, tilesHtml) {
-  const owned = 0; // will be refreshed by refreshStats
-  return `<section class="set-section" data-set="${esc(setId)}">
+  return `<section class="set-section collapsed" data-set="${esc(setId)}">
   <div class="set-header" onclick="toggleSection(this)">
     <div class="set-header-left">
       <span class="toggle-icon">▾</span>
@@ -396,8 +515,45 @@ function setSection(setId, setName, total, tilesHtml) {
 </section>`;
 }
 
-window.toggleSection = function(header) {
-  header.closest('.set-section, .wantlist-item').classList.toggle('collapsed');
+window.toggleSection = async function(header) {
+  const section = header.closest('.set-section, .wantlist-item');
+  section.classList.toggle('collapsed');
+
+  // Lazy-load cards the first time a set section is expanded
+  if (!section.classList.contains('collapsed') && section.dataset.loaded === 'false') {
+    const setId = section.dataset.set;
+    const grid  = section.querySelector(`[data-set-grid]`);
+    if (!setId || !grid) return;
+    section.dataset.loaded = 'true';
+    const cards = await fetchSetCards(setId);
+    grid.innerHTML = cards.map(c => cardTile(c)).join('') || '<div class="loading">No cards found.</div>';
+    applyChecklistFilters();
+    refreshStats();
+  }
+};
+
+window.toggleAllSections = async function() {
+  const sections = [...document.querySelectorAll('#checklist-content .set-section')];
+  const anyExpanded = sections.some(s => !s.classList.contains('collapsed'));
+  sections.forEach(s => s.classList.toggle('collapsed', anyExpanded));
+  const btn = document.getElementById('toggle-all-btn');
+  if (btn) btn.textContent = anyExpanded ? 'Expand all' : 'Collapse all';
+
+  // Lazy-load any unloaded sections that are now expanded
+  if (!anyExpanded) {
+    for (const section of sections) {
+      if (section.dataset.loaded === 'false') {
+        const setId = section.dataset.set;
+        const grid  = section.querySelector(`[data-set-grid]`);
+        if (!setId || !grid) continue;
+        section.dataset.loaded = 'true';
+        const cards = await fetchSetCards(setId);
+        grid.innerHTML = cards.map(c => cardTile(c)).join('') || '';
+      }
+    }
+    applyChecklistFilters();
+    refreshStats();
+  }
 };
 
 function refreshStats() {
@@ -502,7 +658,7 @@ async function runSearch(query) {
 
     const pokemonId = query.toLowerCase().replace(/\s+/g, '_');
     const tracked   = !!wantlists[pokemonId];
-    const trackBtn  = `<div style="grid-column:1/-1;padding:2px 0 6px">
+    const trackBtn  = isGuest ? '' : `<div style="grid-column:1/-1;padding:2px 0 6px">
   <button class="track-all-btn${tracked ? ' tracked' : ''}" data-pokemon="${esc(pokemonId)}"
     onclick="addToWantlist('${esc(pokemonId)}','${esc(query)}')">${tracked ? `✓ Tracking all ${esc(query)}` : `Track all ${esc(query)}`}</button>
 </div>`;
@@ -523,7 +679,9 @@ async function renderWantlists() {
   const entries = Object.entries(wantlists);
 
   if (!entries.length) {
-    el.innerHTML = `<div class="wantlist-empty">
+    el.innerHTML = isGuest
+      ? `<div class="wantlist-empty"><p>Sign in with Google to build a want list.</p></div>`
+      : `<div class="wantlist-empty">
       <p>No want lists yet.</p>
       <p>Go to <strong>Search</strong>, find a Pokémon, and click <strong>"Track all [Name]"</strong>.</p>
     </div>`;

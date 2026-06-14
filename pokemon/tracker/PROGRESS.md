@@ -24,6 +24,14 @@ Built as a separate app at `/pokemon/tracker/` — the old checklist is **intent
 - Run once: `conda run -n base python3 /Users/joy/Documents/pokemon/export_owned.py`
 - Then import via the yellow banner in the app
 
+## "Continue without signing in" setup
+
+The landing page now has a "Continue without signing in" option for read-only browsing —
+no Firebase Anonymous Auth needed. This requires Firestore reads to be public:
+
+1. **Re-apply Firestore rules**: Firestore → Rules tab → paste the updated contents of `firestore.rules`
+   (reads are now public; writes still require the signed-in owner, unchanged)
+
 ## What needs to happen before the app works
 
 ### Step 1 — Firebase project setup (~10 min, one-time)
