@@ -409,11 +409,11 @@ async function fetchSetCards(setId) {
 }
 
 async function searchPokemon(query) {
-  const key = `search_${query.toLowerCase().replace(/\W+/g, '_')}`;
+  const key = `search_v2_${query.toLowerCase().replace(/\W+/g, '_')}`;
   const hit = await cacheGet(key);
   if (hit) return hit;
   const data = await tcgFetch(
-    `${TCG_API}/cards?q=name:${encodeURIComponent('"' + query + '"')}&pageSize=50&orderBy=set.releaseDate` +
+    `${TCG_API}/cards?q=name:${encodeURIComponent('*' + query + '*')}&pageSize=50&orderBy=set.releaseDate` +
     `&select=id,name,number,set,images,tcgplayer`
   );
   const cards = data.data || [];
@@ -635,6 +635,7 @@ document.getElementById('cancel-sets-btn').addEventListener('click', () => {
 // ─────────────────────────────────────────────────────────────────
 
 let searchTimer = null;
+let searchSeq   = 0; // guards against out-of-order responses overwriting newer results
 
 document.getElementById('pokemon-search-input').addEventListener('input', e => {
   clearTimeout(searchTimer);
@@ -645,10 +646,12 @@ document.getElementById('pokemon-search-input').addEventListener('input', e => {
 });
 
 async function runSearch(query) {
+  const seq = ++searchSeq;
   const el = document.getElementById('search-results');
   el.innerHTML = '<div class="loading" style="grid-column:1/-1"><div class="spinner"></div>Searching…</div>';
   try {
     const cards = await searchPokemon(query);
+    if (seq !== searchSeq) return; // a newer search has since started — discard this stale result
     document.getElementById('search-hint').textContent = `${cards.length} result${cards.length !== 1 ? 's' : ''}`;
 
     if (!cards.length) {
@@ -665,6 +668,7 @@ async function runSearch(query) {
 
     el.innerHTML = trackBtn + cards.map(c => cardTile(c, { showSet: true })).join('');
   } catch (e) {
+    if (seq !== searchSeq) return;
     document.getElementById('search-hint').textContent = 'Search failed';
     el.innerHTML = `<div class="search-empty"><h3>Error</h3><p>${esc(e.message)}</p></div>`;
   }
