@@ -9,25 +9,14 @@
 :root{--dark:#1a1a2e;--green:#2ecc71;--bg:#f0f0f5;--shadow:0 2px 8px rgba(0,0,0,.12)}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#222;min-height:100vh}
 
-/* ── Sign-in ── */
-#signin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:var(--dark);color:#fff;gap:22px;text-align:center;padding:24px}
-#signin-screen h1{font-size:2rem}
-#signin-screen p{opacity:.65;max-width:340px}
-.feature-list{list-style:none;display:flex;flex-direction:column;gap:9px;text-align:left;max-width:360px;font-size:.85rem;opacity:.85}
-.feature-list li{display:flex;gap:9px;align-items:flex-start;line-height:1.4}
-.feature-list li::before{content:'•';color:var(--green);font-weight:700}
-.signin-actions{display:flex;flex-direction:column;gap:10px;align-items:center}
-#google-signin-btn{background:#fff;color:#333;border:none;padding:13px 28px;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s}
-#google-signin-btn:hover{background:#f0f0f0}
-#guest-signin-btn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);padding:11px 28px;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s}
-#guest-signin-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.6)}
-#signin-error{color:#ff8a80;font-size:.85rem;min-height:1.2em}
-
 /* ── Top bar ── */
 .topbar{background:var(--dark);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .topbar-brand{display:flex;align-items:center;gap:9px}
 .topbar-card-icon{height:36px;width:auto;border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.4);flex-shrink:0}
-.topbar-title{font-size:.95rem;font-weight:700;white-space:nowrap}
+.topbar-back-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:.78rem;font-weight:600;white-space:nowrap;transition:color .15s}
+.topbar-back-link:hover{color:#fff}
+.topbar-title-link{font-size:.95rem;font-weight:700;white-space:nowrap;color:#fff;text-decoration:none;transition:opacity .15s}
+.topbar-title-link:hover{opacity:.8}
 .tab-bar{display:flex;gap:3px;flex:1;justify-content:center;flex-wrap:wrap}
 .tab-btn{background:transparent;color:rgba(255,255,255,.6);border:none;padding:5px 13px;border-radius:18px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
 .tab-btn:hover{color:#fff}
@@ -37,6 +26,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .user-name{font-size:.78rem;opacity:.85}
 .sign-out-btn{background:transparent;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.2);padding:3px 9px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s}
 .sign-out-btn:hover{color:#fff;border-color:rgba(255,255,255,.6)}
+.signin-topbar-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:4px 12px;border-radius:12px;font-size:.74rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.signin-topbar-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5)}
 
 /* ── Sub-bar ── */
 .subbar{background:#fff;padding:9px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #e5e5e5;position:sticky;top:52px;z-index:90;box-shadow:0 1px 4px rgba(0,0,0,.05)}
@@ -109,24 +100,80 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .search-empty{text-align:center;padding:60px 20px;color:#bbb;grid-column:1/-1}
 .search-empty h3{margin-bottom:8px;font-size:1rem}
 
-/* ── Want lists tab ── */
-.wantlists-header{padding:16px;display:flex;align-items:center;justify-content:space-between}
+/* ── Wishlists tab ── */
+.wantlists-header{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .wantlists-header h2{font-size:.95rem;font-weight:700}
+.wantlists-header-actions{display:flex;gap:6px;align-items:center}
 .wantlist-empty{text-align:center;padding:50px 20px;color:#aaa}
 .wantlist-empty strong{color:#888}
-.wantlist-item{margin:0 16px 14px}
-.wantlist-item-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s}
-.wantlist-item-header:hover{background:#2a2a4e}
-.wantlist-item-header-left{display:flex;align-items:center;gap:9px}
-.wantlist-item.collapsed .toggle-icon{transform:rotate(-90deg)}
-.wantlist-name{font-weight:700;font-size:.9rem}
-.wantlist-progress{font-size:.75rem;opacity:.75}
-.wantlist-remove{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:3px 9px;border-radius:10px;font-size:.7rem;cursor:pointer}
-.wantlist-remove:hover{background:rgba(255,255,255,.22)}
+.wishlist-section{margin:0 16px 14px}
+.wishlist-section.collapsed .wishlist-body{display:none}
+.wishlist-section.collapsed .toggle-icon{transform:rotate(-90deg)}
+.wishlist-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s;position:relative}
+.wishlist-header:hover{background:#2a2a4e}
+.wishlist-header-left{display:flex;align-items:center;gap:9px}
+.wishlist-name{font-weight:700;font-size:.9rem}
+.wishlist-default-badge{background:var(--green);color:#fff;font-size:.58rem;padding:2px 6px;border-radius:8px;font-weight:600}
+.wishlist-progress{font-size:.75rem;opacity:.75}
+.wishlist-menu-btn{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:3px 9px;border-radius:10px;font-size:.8rem;cursor:pointer;line-height:1}
+.wishlist-menu-btn:hover{background:rgba(255,255,255,.22)}
+.wishlist-menu{position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:var(--shadow);padding:4px 0;z-index:50;min-width:150px}
+.wishlist-menu button{display:block;width:100%;text-align:left;padding:7px 14px;border:none;background:none;font-size:.78rem;cursor:pointer;color:#333}
+.wishlist-menu button:hover{background:#f5f5f5}
+.wishlist-body{padding:8px 0}
+.wishlist-empty-list{color:#aaa;font-size:.8rem;padding:16px;text-align:center}
+.wantlist-pokemon{margin-bottom:10px}
+.wantlist-pokemon-header{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:.82rem;font-weight:600;color:#555}
+.wantlist-pokemon-progress{font-size:.72rem;color:#aaa;font-weight:400}
+.wantlist-remove{background:#f0f0f5;border:none;color:#999;padding:2px 7px;border-radius:8px;font-size:.7rem;cursor:pointer;margin-left:auto}
+.wantlist-remove:hover{background:#e0e0e5;color:#666}
+.new-list-btn{background:var(--green);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
+.new-list-btn:hover{background:#27ae60}
 
-/* ── Friends tab ── */
-.friends-panel{padding:16px}
-.friends-panel h2{font-size:.95rem;font-weight:700;margin-bottom:14px}
+/* ── List picker dropdown (search) ── */
+.list-picker{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:var(--shadow);z-index:50;max-height:200px;overflow-y:auto}
+.list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
+.list-picker-item:hover{background:#f0f0f5}
+.list-picker-create{border-top:1px solid #eee;color:var(--dark);font-weight:600}
+
+/* ── Profile view ── */
+#profile-view{padding:0}
+.profile-back-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;justify-content:space-between}
+.profile-header{padding:24px 16px;text-align:center;background:#fff;border-bottom:1px solid #eee}
+.profile-avatar{width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block}
+.profile-no-photo{width:72px;height:72px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.5rem;margin:0 auto 10px}
+.profile-name{font-size:1.2rem;font-weight:700;margin-bottom:4px}
+.profile-stats-row{display:flex;gap:20px;justify-content:center;font-size:.78rem;color:#aaa;margin-top:6px}
+.profile-wishlists-header{padding:16px 16px 8px;font-size:.88rem;font-weight:700;color:#555}
+.share-profile-btn{background:var(--dark);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
+.share-profile-btn:hover{background:#2a2a4e}
+
+/* ── Welcome page ── */
+#welcome-view{max-width:600px;margin:0 auto;padding:32px 20px 48px;text-align:center}
+.welcome-card-wrap{margin:0 auto 24px;width:180px}
+.welcome-card-img{width:100%;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.welcome-title{font-size:1.6rem;font-weight:800;color:var(--dark);margin-bottom:6px}
+.welcome-tagline{font-size:.9rem;color:#888;margin-bottom:24px;line-height:1.5}
+.welcome-story{text-align:left;background:#fff;border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);margin-bottom:24px;font-size:.84rem;line-height:1.6;color:#555}
+.welcome-story h3{font-size:.82rem;font-weight:700;color:var(--dark);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.welcome-features{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:28px}
+.welcome-feature{background:#fff;border-radius:12px;padding:16px 14px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s,transform .15s;text-decoration:none;color:inherit}
+.welcome-feature:hover{box-shadow:0 4px 16px rgba(0,0,0,.15);transform:translateY(-2px)}
+.welcome-feature-icon{font-size:1.3rem;margin-bottom:6px}
+.welcome-feature h4{font-size:.82rem;font-weight:700;color:var(--dark);margin-bottom:3px}
+.welcome-feature p{font-size:.72rem;color:#999;line-height:1.4}
+.welcome-signin{margin-top:8px;font-size:.82rem;color:#aaa}
+
+/* ── Toast notification ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:.82rem;z-index:300;animation:fadeInOut 2s forwards;pointer-events:none}
+@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1}100%{opacity:0}}
+
+/* ── Community tab ── */
+.community-panel{padding:16px}
+.community-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.community-header h2{font-size:.95rem;font-weight:700}
+.public-profile-toggle{font-size:.76rem;color:#555;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.public-profile-toggle input{accent-color:var(--green)}
 .friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
 .friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
 .friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
@@ -136,7 +183,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .back-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px}
 .back-btn{background:transparent;border:1px solid #ddd;color:#555;padding:4px 12px;border-radius:12px;font-size:.75rem;cursor:pointer}
 .back-btn:hover{background:#f5f5f5}
-.viewing-label{font-size:.82rem;color:#666}
 
 /* ── Import banner ── */
 #import-banner{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;margin:12px 16px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -185,44 +231,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 </head>
 <body>
 
-<!-- ── Sign-in screen ── -->
-<div id="signin-screen">
-  <h1>Porydex</h1>
-  <p>Track your Pokémon card collection, hunt for missing cards, and share progress with friends.</p>
-  <ul class="feature-list">
-    <li><strong>My Checklist</strong> — track which cards you own across any set</li>
-    <li><strong>Search</strong> — look up any Pokémon across every TCG set, with prices</li>
-    <li><strong>Wishlist</strong> — pick sets to complete and build want lists</li>
-    <li><strong>Friends</strong> — browse your friends' collections</li>
-  </ul>
-  <div class="signin-actions">
-    <button id="google-signin-btn">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908C16.658 12.015 17.64 9.707 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
-      Sign in with Google
-    </button>
-    <button id="guest-signin-btn">Continue without signing in</button>
-  </div>
-  <p id="signin-error"></p>
-</div>
-
 <!-- ── Main app ── -->
 <div id="app" class="hidden">
 
   <div class="topbar">
     <div class="topbar-brand">
+      <a href="/" class="topbar-back-link">← joyroy</a>
       <img class="topbar-card-icon" src="https://images.pokemontcg.io/basep/15.png" alt="Cool Porygon">
-      <span class="topbar-title">Porydex</span>
+      <a href="#/" class="topbar-title-link">Porydex</a>
     </div>
     <div class="tab-bar">
+      <button class="tab-btn" data-tab="home">Home</button>
       <button class="tab-btn active" data-tab="checklist">My Checklist</button>
       <button class="tab-btn" data-tab="search">Search</button>
       <button class="tab-btn" data-tab="wantlists">Wishlist</button>
-      <button class="tab-btn" data-tab="friends">Friends</button>
+      <button class="tab-btn" data-tab="community">Community</button>
     </div>
     <div class="auth-info">
       <img class="user-photo" id="user-photo" src="" alt="" hidden>
       <span class="user-name" id="user-name"></span>
-      <button class="sign-out-btn" id="sign-out-btn">Sign out</button>
+      <button class="sign-out-btn" id="sign-out-btn" style="display:none">Sign out</button>
+      <button class="signin-topbar-btn" id="topbar-signin-btn">Sign in</button>
     </div>
   </div>
 
@@ -265,8 +294,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <!-- WISHLIST -->
   <div id="tab-wantlists" class="tab-panel hidden">
     <div class="wantlists-header">
-      <h2>My Wishlist</h2>
-      <button class="manage-sets-btn" id="manage-sets-btn">Manage Sets</button>
+      <h2>My Wishlists</h2>
+      <div class="wantlists-header-actions">
+        <button class="new-list-btn" id="new-list-btn" onclick="promptNewList()">+ New List</button>
+        <button class="manage-sets-btn" id="manage-sets-btn">Manage Sets</button>
+        <button class="share-profile-btn" id="share-my-profile-btn" onclick="shareProfile()">Share Profile</button>
+      </div>
     </div>
     <div id="set-picker" class="hidden">
       <h3>Select the sets you want to track. Your selections sync to your account.</h3>
@@ -278,38 +311,74 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
     <div id="wantlists-content">
       <div class="wantlist-empty">
-        <p>No want lists yet.</p>
-        <p>Search for a Pokémon and click <strong>"Track all [Name]"</strong> to add one.</p>
+        <p>No wishlists yet.</p>
+        <p>Click <strong>"New List"</strong> to create one, then use <strong>Search</strong> to add Pokémon.</p>
       </div>
     </div>
   </div>
 
-  <!-- FRIENDS -->
-  <div id="tab-friends" class="tab-panel hidden">
-    <div id="friends-list-view">
-      <div class="friends-panel">
-        <h2>Friends</h2>
-        <div id="friends-list-content">
-          <div class="loading"><div class="spinner"></div>Loading…</div>
-        </div>
+  <!-- COMMUNITY -->
+  <div id="tab-community" class="tab-panel hidden">
+    <div class="community-panel">
+      <div class="community-header">
+        <h2>Community</h2>
+        <label class="public-profile-toggle" id="public-profile-toggle" style="display:none">
+          <input type="checkbox" id="public-profile-cb" onchange="togglePublicProfile(this)">
+          <span>Public profile</span>
+        </label>
+      </div>
+      <div id="community-content">
+        <div class="wantlist-empty"><p>No public profiles yet.</p></div>
       </div>
     </div>
-    <div id="friend-collection-view" class="hidden">
-      <div class="back-bar">
-        <button class="back-btn" id="back-to-friends">← Back</button>
-        <span class="viewing-label" id="viewing-friend-label"></span>
+  </div>
+
+  <!-- WELCOME (guest landing page) -->
+  <div id="welcome-view" class="tab-panel hidden">
+    <div id="welcome-view-inner">
+      <div class="welcome-card-wrap">
+        <img class="welcome-card-img" src="./njoysporygon.png" alt="Joy's Porygon">
       </div>
-      <div class="readonly-banner">Viewing read-only — this is their collection.</div>
-      <div class="subbar">
-        <input class="subbar-search" id="friend-filter" type="search" placeholder="Filter cards…">
-        <span class="subbar-stats" id="friend-stats"></span>
-        <label class="filter-toggle"><input type="checkbox" id="friend-missing-toggle"> Missing only</label>
+      <div class="welcome-title">Welcome to Porydex</div>
+      <p class="welcome-tagline">Track your Pokemon card collection, share wishlists, and see what other collectors have.</p>
+
+      <div class="welcome-story">
+        <h3>How it started</h3>
+        What began as a spreadsheet tracking missing cards from childhood sets grew into this — a full collection tracker with search, wishlists, and a community of collectors. Porydex is named after Porygon, the original digital Pokemon.
       </div>
-      <div id="friend-checklist-content"></div>
+
+      <div class="welcome-features">
+        <a class="welcome-feature" href="#/search">
+          <div class="welcome-feature-icon">🔍</div>
+          <h4>Search</h4>
+          <p>Look up any card across every TCG set, with prices</p>
+        </a>
+        <a class="welcome-feature" href="#/community">
+          <div class="welcome-feature-icon">👥</div>
+          <h4>Community</h4>
+          <p>Browse public profiles and see what others collect</p>
+        </a>
+      </div>
+
+      <p class="welcome-signin">Sign in to track your own collection and build wishlists.</p>
     </div>
+  </div>
+
+  <!-- PROFILE VIEW (shown via hash route) -->
+  <div id="profile-view" class="tab-panel hidden">
+    <div class="profile-back-bar">
+      <button class="back-btn" id="back-from-profile">← Back to Porydex</button>
+      <button class="share-profile-btn" id="copy-profile-link">Copy Link</button>
+    </div>
+    <div class="profile-header" id="profile-header"></div>
+    <div class="profile-wishlists-header">Wishlists</div>
+    <div id="profile-wishlists"></div>
   </div>
 
 </div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
 
 <!-- Card detail modal -->
 <div class="modal-bg" id="modal-bg">
@@ -333,5 +402,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <script src="./firebase-config.js"></script>
 <script type="module" src="./app.js"></script>
+<script>
+// Safety net: if app.js fails to load or auth hangs, show the app after 3s
+setTimeout(function() {
+  var app = document.getElementById('app');
+  if (app && app.classList.contains('hidden')) {
+    app.classList.remove('hidden');
+    var wv = document.getElementById('welcome-view');
+    if (wv) wv.classList.remove('hidden');
+  }
+}, 3000);
+</script>
 </body>
 </html>

@@ -1,9 +1,10 @@
-# Pokemon Tracker — Progress & Handoff
+# Porydex — Progress & Handoff
 
 ## What this is
 
-A multi-user Pokemon card tracker replacing the old static `missing_cards.html`.
-Built as a separate app at `/pokemon/tracker/` — the old checklist is **intentionally preserved**.
+A multi-user Pokemon card collection tracker at `/pokemon/tracker/`.
+Guest-friendly — anyone can browse, search, and view public profiles without signing in.
+The old static `missing_cards.html` is **intentionally preserved** alongside this app.
 
 ## What's done
 
@@ -11,10 +12,11 @@ Built as a separate app at `/pokemon/tracker/` — the old checklist is **intent
 
 | File | Status | Notes |
 |---|---|---|
-| `index.html` | ✅ Complete | App shell + all CSS. No generated content. |
-| `app.js` | ✅ Complete | Full app logic — auth, Firestore, TCG API, all 4 tabs. |
-| `firebase-config.js` | ⚠️ Template | Placeholder values — must be replaced with real Firebase config. |
-| `firestore.rules` | ✅ Complete | Ready to paste into Firebase Console → Firestore → Rules. |
+| `index.html` | ✅ Complete | App shell, all CSS, welcome page, profile view |
+| `app.js` | ✅ Complete | Full app logic — auth, Firestore, TCG API, routing |
+| `firebase-config.js` | ✅ Configured | Live Firebase config for the Porydex project |
+| `firestore.rules` | ✅ Complete | Public reads, owner-only writes — must be pasted into Firebase Console |
+| `njoysporygon.png` | ✅ Asset | Welcome page mascot card (placeholder — Nurse Joy's Porygon) |
 
 ### Migration script (local only, not in this repo)
 
@@ -24,113 +26,94 @@ Built as a separate app at `/pokemon/tracker/` — the old checklist is **intent
 - Run once: `conda run -n base python3 /Users/joy/Documents/pokemon/export_owned.py`
 - Then import via the yellow banner in the app
 
-## "Continue without signing in" setup
+## Firebase Console setup required
 
-The landing page now has a "Continue without signing in" option for read-only browsing —
-no Firebase Anonymous Auth needed. This requires Firestore reads to be public:
+### Firestore rules (must be applied manually)
 
-1. **Re-apply Firestore rules**: Firestore → Rules tab → paste the updated contents of `firestore.rules`
-   (reads are now public; writes still require the signed-in owner, unchanged)
+Paste the contents of `firestore.rules` into Firebase Console → Firestore → Rules tab.
+Reads are public (guests can browse); writes require the signed-in document owner.
 
-## What needs to happen before the app works
+### Authorized domains
 
-### Step 1 — Firebase project setup (~10 min, one-time)
+Firebase Console → Authentication → Settings → Authorized domains.
+Ensure these are listed:
+- `localhost` (default, for local dev)
+- `joyroy.org` (production)
+- Any other domain you serve from
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Create a new project (free Spark plan)
-3. **Enable Google Sign-In**: Authentication → Sign-in method → Google → Enable
-4. **Enable Firestore**: Firestore Database → Create database → Start in production mode
-5. **Apply security rules**: Firestore → Rules tab → paste contents of `firestore.rules`
-6. **Get config**: Project Settings → Your Apps → Add web app → copy the config object
-7. **Fill in `firebase-config.js`**: replace all `REPLACE_WITH_...` values
+## Architecture
 
-### Step 2 — Push to GitHub
-
-The branch `feature/pokemon-tracker` has the new files committed locally.
-The GitHub push is currently blocked (previous PAT token was exposed in chat; must be revoked).
-
-1. Revoke old token at [github.com/settings/tokens](https://github.com/settings/tokens)
-2. Create new token: Settings → Developer settings → Personal access tokens → Classic → `repo` scope
-3. Set remote URL and push:
-```bash
-cd /Users/joy/Desktop/Research/website/overjoyroy.github.io
-git remote set-url origin https://<NEW_TOKEN>@github.com/overjoyroy/overjoyroy.github.io.git
-git push -u origin feature/pokemon-tracker
-```
-4. Merge into `master` when ready to go live (PR or direct merge)
-
-### Step 3 — Add friends
-
-When a friend signs in for the first time, their UID appears in the browser console:
-```
-[Tracker] To add this user to FRIENDS, paste: { uid: '...', displayName: '...' }
-```
-
-Edit `app.js`:
-1. Add friend's email to `ALLOWED_EMAILS` array
-2. Add `{ uid: '...', displayName: '...' }` to `FRIENDS` array
-3. Push updated `app.js` to GitHub
-
-### Step 4 — Update personal.md link (optional)
-
-`_pages/personal.md` currently links to `/pokemon/missing_cards.html`.
-Add a second button linking to `/pokemon/tracker/` when ready to expose the new app.
-
----
-
-## Architecture summary
-
-**Frontend**: GitHub Pages (free static hosting) — `index.html` + `app.js`
+**Frontend**: GitHub Pages — `index.html` + `app.js` (vanilla JS, no build tools)
 **Backend**: Firebase Spark plan (free)
-- Firebase Auth → Google Sign-In with email allowlist
-- Firestore → per-user data (owned cards, tracked sets, want lists)
+- Firebase Auth → Google Sign-In with email allowlist + redirect flow
+- Firestore → per-user data (owned cards, tracked sets, wishlists)
 
 **Card data**: Live from [api.pokemontcg.io](https://api.pokemontcg.io) — CORS-enabled, free, no key needed
-- Responses cached in `sessionStorage` (cleared on tab close)
+- Responses cached in IndexedDB (7-day TTL) + sessionStorage (L1/L2 cache)
 
-**Firestore schema**:
+**Routing**: Hash-based (`#/search`, `#/community`, `#/profile/uid`, etc.)
+- Browser back/forward works between all views
+- Profile URLs are shareable
+
+### Firestore schema
+
 ```
-users/{uid}         → { displayName, email, photoURL, trackedSets: [setId, ...] }
+users/{uid}         → { displayName, email, photoURL, trackedSets: [...], publicProfile: bool }
 collections/{uid}   → { "base1-4": true, "basep-5": true, ..., updatedAt }
-wantlists/{uid}     → { "dragonite": { displayName, addedAt }, ... }
+wantlists/{uid}     → { _version: 2, _lists: { listId: { name, order } }, _defaultList: listId,
+                         "dragonite": { displayName, addedAt, list: listId }, ... }
 ```
 
-## App features (all implemented)
+## App features
 
-| Feature | Tab | Notes |
+| Feature | View | Notes |
 |---|---|---|
-| Google Sign-In with allowlist | — | Non-allowlisted accounts are signed out immediately |
+| Welcome page | Home | Mascot card, description, feature links |
+| Guest browsing | all | No sign-in required; read-only access to Search + Community |
+| Google Sign-In | topbar | Redirect-based; email allowlist in `ALLOWED_EMAILS` |
 | Per-user card collection | My Checklist | Synced to Firestore in real-time |
-| Set picker | My Checklist | Choose from all TCG sets, grouped by era |
-| Owned/missing tracking | My Checklist | Toggle updates Firestore; offline-tolerant |
+| Set picker | Wishlists | Choose from all TCG sets, grouped by era |
+| Owned/missing tracking | My Checklist | Optimistic toggle, offline-tolerant |
 | Card detail modal | everywhere | Image, prices by finish type, eBay link |
 | Filter + missing-only toggle | My Checklist | Real-time name filter |
-| Search all cards by Pokémon name | Search | Queries TCG API live; debounced 400ms |
-| Track all [Pokémon] want list | Search | Stored in Firestore wantlists |
-| Want list progress | Want Lists | Owned / total per species |
-| Friends' collections (read-only) | Friends | Hardcoded UID list in app.js |
+| Search (wildcard substring) | Search | `name:*query*` via TCG API; debounced 400ms with race guard |
+| Multiple named wishlists | Wishlists | Create, rename, delete, set default; per-list share links |
+| List picker on "Track all" | Search | Choose which wishlist to add to (dropdown if multiple lists) |
+| Auto-migration | — | Old flat wantlist format auto-upgrades to v2 multi-list |
+| Public profiles | Community | Opt-in via "Public profile" toggle; listed in Community tab |
+| Shareable profile pages | `#/profile/uid` | Read-only view of user's wishlists + stats; works for guests |
+| Per-list share links | `#/profile/uid/listId` | Direct link to a specific wishlist |
+| Community directory | Community | Shows all users with public profiles |
 | Import from owned_cards.json | My Checklist | One-time migration from xlsx |
-| Persistent login | — | Firebase Auth + IndexedDB offline persistence |
+| Navigation links | topbar | "← joyroy" back to main site; "Porydex" logo to tracker home |
+
+## Adding new users
+
+1. Add their email to `ALLOWED_EMAILS` in `app.js`
+2. Push updated `app.js` to GitHub
+3. They sign in via the topbar button — their profile auto-creates in Firestore
+4. They can toggle "Public profile" in the Community tab to appear in the directory
 
 ## Known gaps / future ideas
 
-- `personal.md` still only links to old `missing_cards.html` — add a second link when ready
-- `export_owned.py` may warn about unmatched xlsx sheet names; those sets just get skipped
-- Friends tab requires manually adding UIDs to `app.js` — no self-service onboarding
-- No trade view yet (Phase 4 from the plan) — was designed but not built
+- Custom mascot card to replace the Nurse Joy placeholder
 - Search results don't paginate (capped at 50 cards per query by API)
+- No trade view yet
+- Split into separate page files for better code organization
+- Sign-in redirect doesn't work on localhost — use the deployed site for auth testing
 
 ## Key files elsewhere
 
 ```
 Documents/pokemon/
-  export_owned.py         ← run to generate owned_cards.json (one-time)
-  personal.xlsx           ← source of owned card data (archive after migration)
-  missing_cards.py        ← old script (no longer needed)
-  generate_checklist.py   ← old script (no longer needed)
+  website/                  ← full site repo (moved here from Desktop)
+  export_owned.py           ← run to generate owned_cards.json (one-time)
+  personal.xlsx             ← source of owned card data
+  missing_cards.py           ← generates missing_cards.csv from personal.xlsx
+  generate_checklist.py     ← generates missing_cards.html from CSV
 
-overjoyroy.github.io/
-  pokemon/missing_cards.html   ← old static app — keep, do not delete
-  _pages/personal.md           ← links to old app; update when ready
+website/
+  pokemon/missing_cards.html   ← old static checklist — keep, do not delete
+  _pages/personal.md           ← links to old app + Porydex
   _data/navigation.yml         ← has "Personal" nav entry
 ```

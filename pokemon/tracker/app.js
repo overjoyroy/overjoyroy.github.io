@@ -6,18 +6,17 @@
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache,
   doc, getDoc, setDoc, updateDoc, deleteField, onSnapshot, serverTimestamp,
+  collection as fsCollection, query, where, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ─────────────────────────────────────────────────────────────────
 // CONFIGURATION
 // Edit ALLOWED_EMAILS to control who can sign in.
-// Add friend UIDs to FRIENDS after they sign in once
-// (their UID is printed to the browser console on first sign-in).
 // ─────────────────────────────────────────────────────────────────
 
 const ALLOWED_EMAILS = [
@@ -25,9 +24,6 @@ const ALLOWED_EMAILS = [
   // 'friend@gmail.com',
 ];
 
-const FRIENDS = [
-  // { uid: 'PASTE_UID_HERE', displayName: 'Friend Name', photoURL: '' },
-];
 
 const TCG_API = 'https://api.pokemontcg.io/v2';
 
@@ -57,7 +53,7 @@ let currentUser    = null;
 let isGuest        = false;  // true for read-only anonymous sessions
 let trackedSets    = [];     // set IDs the user has chosen to track
 let collection     = {};     // { cardId: true } owned cards
-let wantlists      = {};     // { pokemonId: { displayName } }
+let wantlists      = {};     // v2 multi-list format (see getListEntries)
 let collUnsub      = null;   // Firestore listener unsubscribe fns
 let wlUnsub        = null;
 
@@ -66,7 +62,6 @@ let cardDataMap    = {};     // { cardId: apiCardObject } for modal lookups
 
 let activeTab      = 'checklist';
 let modalCardId    = null;
-let viewingFriend  = null;   // { uid, displayName }
 let pendingSetSel  = null;   // Set() in-progress selection in set picker
 
 // ─────────────────────────────────────────────────────────────────
@@ -96,86 +91,119 @@ function bestPrice(prices) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// AUTH
+// WANTLIST HELPERS — multi-list data model
 // ─────────────────────────────────────────────────────────────────
 
-document.getElementById('google-signin-btn').addEventListener('click', async () => {
-  try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
-  } catch (e) {
-    if (e.code === 'auth/popup-closed-by-user') return;
-    console.error('[Porydex] Sign-in error:', e.code, e.message);
-    const msg = e.code === 'auth/unauthorized-domain'
-      ? `This domain (${location.hostname}) isn't authorized for sign-in yet. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
-      : `Sign-in failed (${e.code || 'unknown error'}). Please try again.`;
-    document.getElementById('signin-error').textContent = msg;
+function getWantlistLists() {
+  return wantlists._lists || {};
+}
+
+function getListEntries(listId) {
+  return Object.entries(wantlists)
+    .filter(([k, v]) => !k.startsWith('_') && v.list === listId)
+    .map(([pid, info]) => ({ pokemonId: pid, ...info }));
+}
+
+function getAllListEntries() {
+  return Object.entries(wantlists)
+    .filter(([k]) => !k.startsWith('_'))
+    .map(([pid, info]) => ({ pokemonId: pid, ...info }));
+}
+
+function isTracked(pokemonId) {
+  return !!(wantlists[pokemonId] && !pokemonId.startsWith('_'));
+}
+
+async function migrateWantlistIfNeeded(data, uid) {
+  if (!data || Object.keys(data).length === 0) return data || {};
+  if (data._version === 2) return data;
+
+  const defaultListId = `list_${Date.now()}`;
+  const migrated = {
+    _version: 2,
+    _lists: {
+      [defaultListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 }
+    },
+    _defaultList: defaultListId,
+  };
+
+  for (const [pid, info] of Object.entries(data)) {
+    migrated[pid] = { ...info, list: defaultListId };
   }
+
+  await setDoc(doc(db, 'wantlists', uid), migrated);
+  return migrated;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// AUTH — simple: guest by default, popup sign-in
+// ─────────────────────────────────────────────────────────────────
+
+document.getElementById('topbar-signin-btn').addEventListener('click', () => {
+  signInWithRedirect(auth, new GoogleAuthProvider());
 });
 
-// "Continue without signing in" — browse read-only, no Firebase auth session at all.
-document.getElementById('guest-signin-btn').addEventListener('click', async () => {
-  currentUser = null;
-  isGuest = true;
-  await bootApp();
-});
+getRedirectResult(auth).catch(e => console.error('[Porydex] redirect error:', e.code));
 
-document.getElementById('sign-out-btn').addEventListener('click', () => {
-  if (isGuest) {
-    teardown();
-    showSignin();
-  } else {
-    signOut(auth);
-  }
-});
+document.getElementById('sign-out-btn').addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async user => {
   if (!user) {
-    showSignin();
     teardown();
+    currentUser = null;
+    isGuest = true;
+    await bootApp();
     return;
   }
   if (!ALLOWED_EMAILS.includes(user.email)) {
-    console.warn('[Porydex] Blocked — add this to ALLOWED_EMAILS:', user.email);
-    document.getElementById('signin-error').textContent =
-      'This tracker is private. Your account is not on the access list.';
+    console.warn('[Porydex] Not on access list:', user.email);
+    alert('Your account is not on the access list for this tracker.');
     await signOut(auth);
     return;
   }
   currentUser = user;
   isGuest = false;
-  console.info('[Tracker] signed in —', user.email, '| uid:', user.uid);
-  if (!FRIENDS.some(f => f.uid === user.uid)) {
-    console.info('[Tracker] To add this user to FRIENDS, paste:', `{ uid: '${user.uid}', displayName: '${user.displayName}' }`);
-  }
+  console.info('[Porydex] signed in —', user.email, '| uid:', user.uid);
   await bootApp();
 });
 
 async function bootApp() {
-  // Populate auth bar immediately (synchronous)
   const photo = document.getElementById('user-photo');
+  const signOutBtn = document.getElementById('sign-out-btn');
+  const signInBtn = document.getElementById('topbar-signin-btn');
+
   if (isGuest) {
     photo.hidden = true;
-    document.getElementById('user-name').textContent = 'Guest';
-    document.getElementById('sign-out-btn').textContent = 'Exit Guest Mode';
+    document.getElementById('user-name').textContent = '';
+    signOutBtn.style.display = 'none';
+    signInBtn.style.display = '';
   } else {
     if (currentUser.photoURL) { photo.src = currentUser.photoURL; photo.hidden = false; }
     else photo.hidden = true;
     document.getElementById('user-name').textContent = currentUser.displayName || currentUser.email;
-    document.getElementById('sign-out-btn').textContent = 'Sign out';
+    signOutBtn.style.display = '';
+    signOutBtn.textContent = 'Sign out';
+    signInBtn.style.display = 'none';
   }
-
-  // Show the app shell right away — don't make the user wait for network
-  document.getElementById('signin-screen').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
 
   // Guests have no account — hide every write-capable control
   document.getElementById('manage-sets-btn').classList.toggle('hidden', isGuest);
   document.getElementById('modal-owned-btn').classList.toggle('hidden', isGuest);
+  document.getElementById('new-list-btn').classList.toggle('hidden', isGuest);
+  document.getElementById('share-my-profile-btn').classList.toggle('hidden', isGuest);
+  document.getElementById('public-profile-toggle').style.display = isGuest ? 'none' : '';
+
+  // Hide tabs that don't apply to guests
+  document.querySelectorAll('.tab-btn[data-tab="checklist"]').forEach(b => b.classList.toggle('hidden', isGuest));
+  document.querySelectorAll('.tab-btn[data-tab="wantlists"]').forEach(b => b.classList.toggle('hidden', isGuest));
+
+  // Reveal the app now that auth state is resolved and UI is configured
+  document.getElementById('app').classList.remove('hidden');
 
   if (isGuest) {
     trackedSets = []; collection = {}; wantlists = {};
-    await fetchAllSets(); // warm the set list cache for Search/Friends
-    await renderChecklist();
+    await fetchAllSets();
+    handleRoute();
     return;
   }
 
@@ -201,7 +229,9 @@ async function bootApp() {
     fetchAllSets(), // warm the IndexedDB cache now
   ]);
 
-  const freshSets = userSnap.data()?.trackedSets || [];
+  const userData = userSnap.data() || {};
+  const freshSets = userData.trackedSets || [];
+  document.getElementById('public-profile-cb').checked = !!userData.publicProfile;
 
   // Re-render only if tracked sets changed from the cached version
   if (JSON.stringify(freshSets) !== JSON.stringify(trackedSets)) {
@@ -216,6 +246,9 @@ async function bootApp() {
   // Start Firestore listeners
   listenCollection();
   listenWantlists();
+
+  // Check for profile URL on load
+  handleRoute();
 }
 
 function teardown() {
@@ -224,10 +257,6 @@ function teardown() {
   currentUser = null; isGuest = false; trackedSets = []; collection = {}; wantlists = {}; cardDataMap = {};
 }
 
-function showSignin() {
-  document.getElementById('signin-screen').classList.remove('hidden');
-  document.getElementById('app').classList.add('hidden');
-}
 
 // ─────────────────────────────────────────────────────────────────
 // FIRESTORE — COLLECTION LISTENER
@@ -253,8 +282,13 @@ function listenCollection() {
 
 function listenWantlists() {
   if (wlUnsub) wlUnsub();
-  wlUnsub = onSnapshot(doc(db, 'wantlists', currentUser.uid), snap => {
-    wantlists = snap.data() || {};
+  wlUnsub = onSnapshot(doc(db, 'wantlists', currentUser.uid), async snap => {
+    const data = snap.data() || {};
+    if (Object.keys(data).length && data._version !== 2) {
+      wantlists = await migrateWantlistIfNeeded(data, currentUser.uid);
+    } else {
+      wantlists = data;
+    }
     if (activeTab === 'wantlists') renderWantlists();
   });
 }
@@ -303,23 +337,166 @@ async function saveTrackedSets(ids) {
   await setDoc(doc(db, 'users', currentUser.uid), { trackedSets: ids }, { merge: true });
 }
 
-window.addToWantlist = async function(pokemonId, displayName) {
-  const ref   = doc(db, 'wantlists', currentUser.uid);
-  const delta = { [pokemonId]: { displayName, addedAt: serverTimestamp() } };
-  await updateDoc(ref, delta).catch(async e => {
-    if (e.code === 'not-found') await setDoc(ref, delta);
-    else throw e;
-  });
+window.addToWantlist = async function(pokemonId, displayName, listId) {
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const targetList = listId || wantlists._defaultList;
+
+  if (!targetList) {
+    const newListId = `list_${Date.now()}`;
+    const init = {
+      _version: 2,
+      _lists: { [newListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 } },
+      _defaultList: newListId,
+      [pokemonId]: { displayName, addedAt: serverTimestamp(), list: newListId },
+    };
+    await setDoc(ref, init, { merge: true });
+  } else {
+    const delta = { [pokemonId]: { displayName, addedAt: serverTimestamp(), list: targetList } };
+    await updateDoc(ref, delta).catch(async e => {
+      if (e.code === 'not-found') {
+        const newListId = `list_${Date.now()}`;
+        await setDoc(ref, {
+          _version: 2,
+          _lists: { [newListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 } },
+          _defaultList: newListId,
+          [pokemonId]: { displayName, addedAt: serverTimestamp(), list: newListId },
+        });
+      } else throw e;
+    });
+  }
+
   document.querySelectorAll(`.track-all-btn[data-pokemon="${CSS.escape(pokemonId)}"]`).forEach(btn => {
     btn.textContent = `✓ Tracking all ${displayName}`;
     btn.classList.add('tracked');
   });
+  dismissListPicker();
 };
 
 window.removeFromWantlist = async function(pokemonId) {
   const ref = doc(db, 'wantlists', currentUser.uid);
   await updateDoc(ref, { [pokemonId]: deleteField() });
 };
+
+// ─────────────────────────────────────────────────────────────────
+// WANTLIST — LIST MANAGEMENT
+// ─────────────────────────────────────────────────────────────────
+
+window.createWishlist = async function(name) {
+  if (!name || !currentUser) return;
+  const listId = `list_${Date.now()}`;
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const lists = getWantlistLists();
+  const order = Object.keys(lists).length;
+  const delta = {
+    _version: 2,
+    [`_lists.${listId}`]: { name, createdAt: serverTimestamp(), order },
+  };
+  if (!wantlists._defaultList) delta._defaultList = listId;
+  await updateDoc(ref, delta).catch(async e => {
+    if (e.code === 'not-found') {
+      await setDoc(ref, {
+        _version: 2,
+        _lists: { [listId]: { name, createdAt: serverTimestamp(), order: 0 } },
+        _defaultList: listId,
+      });
+    } else throw e;
+  });
+};
+
+window.renameWishlist = async function(listId) {
+  const lists = getWantlistLists();
+  const current = lists[listId]?.name || '';
+  const name = prompt('Rename list:', current);
+  if (!name || name === current) return;
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  await updateDoc(ref, { [`_lists.${listId}.name`]: name });
+};
+
+window.deleteWishlist = async function(listId) {
+  const lists = getWantlistLists();
+  const name = lists[listId]?.name || 'this list';
+  if (!confirm(`Delete "${name}" and all its tracked Pokémon?`)) return;
+
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const updates = { [`_lists.${listId}`]: deleteField() };
+  const entries = getListEntries(listId);
+  for (const e of entries) updates[e.pokemonId] = deleteField();
+  if (wantlists._defaultList === listId) {
+    const remaining = Object.keys(lists).filter(k => k !== listId);
+    updates._defaultList = remaining[0] || deleteField();
+  }
+  await updateDoc(ref, updates);
+};
+
+window.setDefaultWishlist = async function(listId) {
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  await updateDoc(ref, { _defaultList: listId });
+};
+
+window.toggleListMenu = function(listId) {
+  const menu = document.getElementById(`menu-${listId}`);
+  if (!menu) return;
+  document.querySelectorAll('.wishlist-menu:not(.hidden)').forEach(m => {
+    if (m !== menu) m.classList.add('hidden');
+  });
+  menu.classList.toggle('hidden');
+};
+
+window.promptNewList = function() {
+  const name = prompt('New list name:');
+  if (name) createWishlist(name.trim());
+};
+
+// ─────────────────────────────────────────────────────────────────
+// SEARCH — LIST PICKER DROPDOWN
+// ─────────────────────────────────────────────────────────────────
+
+window.showListPicker = function(pokemonId, displayName, btn) {
+  dismissListPicker();
+  const lists = getWantlistLists();
+  const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+
+  const picker = document.createElement('div');
+  picker.className = 'list-picker';
+  picker.id = 'active-list-picker';
+
+  for (const [lid, info] of listArr) {
+    const item = document.createElement('div');
+    item.className = 'list-picker-item';
+    item.textContent = info.name;
+    if (lid === wantlists._defaultList) item.textContent += ' ★';
+    item.onclick = () => addToWantlist(pokemonId, displayName, lid);
+    picker.appendChild(item);
+  }
+
+  const create = document.createElement('div');
+  create.className = 'list-picker-item list-picker-create';
+  create.textContent = '+ New list…';
+  create.onclick = async () => {
+    const name = prompt('New list name:');
+    if (!name) return;
+    await createWishlist(name.trim());
+    const newLists = getWantlistLists();
+    const newest = Object.entries(newLists).sort((a, b) => (b[1].order || 0) - (a[1].order || 0))[0];
+    if (newest) await addToWantlist(pokemonId, displayName, newest[0]);
+    dismissListPicker();
+  };
+  picker.appendChild(create);
+
+  btn.style.position = 'relative';
+  btn.appendChild(picker);
+};
+
+function dismissListPicker() {
+  const existing = document.getElementById('active-list-picker');
+  if (existing) existing.remove();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.list-picker') && !e.target.closest('.track-all-btn')) {
+    dismissListPicker();
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────
 // POKEMON TCG API + CACHE
@@ -660,10 +837,14 @@ async function runSearch(query) {
     }
 
     const pokemonId = query.toLowerCase().replace(/\s+/g, '_');
-    const tracked   = !!wantlists[pokemonId];
+    const tracked   = isTracked(pokemonId);
+    const lists     = getWantlistLists();
+    const multiList = Object.keys(lists).length > 1;
     const trackBtn  = isGuest ? '' : `<div style="grid-column:1/-1;padding:2px 0 6px">
   <button class="track-all-btn${tracked ? ' tracked' : ''}" data-pokemon="${esc(pokemonId)}"
-    onclick="addToWantlist('${esc(pokemonId)}','${esc(query)}')">${tracked ? `✓ Tracking all ${esc(query)}` : `Track all ${esc(query)}`}</button>
+    onclick="${tracked ? '' : (multiList
+      ? `showListPicker('${esc(pokemonId)}','${esc(query)}',this)`
+      : `addToWantlist('${esc(pokemonId)}','${esc(query)}')`)}">${tracked ? `✓ Tracking all ${esc(query)}` : `Track all ${esc(query)}`}</button>
 </div>`;
 
     el.innerHTML = trackBtn + cards.map(c => cardTile(c, { showSet: true })).join('');
@@ -680,162 +861,123 @@ async function runSearch(query) {
 
 async function renderWantlists() {
   const el = document.getElementById('wantlists-content');
-  const entries = Object.entries(wantlists);
+  const lists = getWantlistLists();
+  const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  const allEntries = getAllListEntries();
 
-  if (!entries.length) {
+  if (!listArr.length && !allEntries.length) {
     el.innerHTML = isGuest
       ? `<div class="wantlist-empty"><p>Sign in with Google to build a want list.</p></div>`
       : `<div class="wantlist-empty">
-      <p>No want lists yet.</p>
-      <p>Go to <strong>Search</strong>, find a Pokémon, and click <strong>"Track all [Name]"</strong>.</p>
+      <p>No wishlists yet.</p>
+      <p>Click <strong>"New List"</strong> above to create one, then go to <strong>Search</strong> to add Pokémon.</p>
     </div>`;
     return;
   }
 
-  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading want list cards…</div>';
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading wishlists…</div>';
 
   let html = '';
-  for (const [pid, info] of entries) {
-    let cards = [];
-    try { cards = await searchPokemon(info.displayName); } catch (_) {}
-    const nOwned = cards.filter(c => collection[c.id]).length;
-    const tiles  = cards.map(c => cardTile(c, { showSet: true })).join('');
-    html += `<div class="wantlist-item" data-pokemon="${esc(pid)}">
-  <div class="wantlist-item-header" onclick="toggleSection(this)">
-    <div class="wantlist-item-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="wantlist-name">${esc(info.displayName)}</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <span class="wantlist-progress">${nOwned} / ${cards.length} owned</span>
-      <button class="wantlist-remove"
-        onclick="event.stopPropagation();removeFromWantlist('${esc(pid)}')">Remove</button>
-    </div>
+  for (const [listId, listInfo] of listArr) {
+    const entries = getListEntries(listId);
+    const isDefault = wantlists._defaultList === listId;
+    const readonly = isGuest;
+
+    let totalCards = 0, totalOwned = 0;
+    let pokemonHtml = '';
+    for (const entry of entries) {
+      let cards = [];
+      try { cards = await searchPokemon(entry.displayName); } catch (_) {}
+      const nOwned = cards.filter(c => collection[c.id]).length;
+      totalCards += cards.length;
+      totalOwned += nOwned;
+      const tiles = cards.map(c => cardTile(c, { showSet: true })).join('');
+      pokemonHtml += `<div class="wantlist-pokemon" data-pokemon="${esc(entry.pokemonId)}">
+  <div class="wantlist-pokemon-header">
+    <span class="wantlist-pokemon-name">${esc(entry.displayName)}</span>
+    <span class="wantlist-pokemon-progress">${nOwned}/${cards.length}</span>
+    ${readonly ? '' : `<button class="wantlist-remove" onclick="removeFromWantlist('${esc(entry.pokemonId)}')">✕</button>`}
   </div>
   <div class="card-grid">${tiles}</div>
+</div>`;
+    }
+
+    const menuHtml = readonly ? '' : `<button class="wishlist-menu-btn" onclick="event.stopPropagation();toggleListMenu('${esc(listId)}')" title="List options">⋯</button>
+  <div class="wishlist-menu hidden" id="menu-${esc(listId)}">
+    <button onclick="renameWishlist('${esc(listId)}')">Rename</button>
+    <button onclick="setDefaultWishlist('${esc(listId)}')">Set as default</button>
+    <button onclick="shareList('${esc(listId)}')">Share link</button>
+    <button onclick="deleteWishlist('${esc(listId)}')">Delete</button>
+  </div>`;
+
+    html += `<div class="wishlist-section" data-list-id="${esc(listId)}">
+  <div class="wishlist-header" onclick="toggleWishlistSection(this)">
+    <div class="wishlist-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="wishlist-name">${esc(listInfo.name)}</span>
+      ${isDefault ? '<span class="wishlist-default-badge">Default</span>' : ''}
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="wishlist-progress">${totalOwned} / ${totalCards} owned</span>
+      ${menuHtml}
+    </div>
+  </div>
+  <div class="wishlist-body">${pokemonHtml || '<p class="wishlist-empty-list">No Pokémon tracked yet. Use Search to add some.</p>'}</div>
 </div>`;
   }
 
   el.innerHTML = html;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// FRIENDS TAB
-// ─────────────────────────────────────────────────────────────────
-
-async function renderFriendsList() {
-  const el = document.getElementById('friends-list-content');
-  if (!FRIENDS.length) {
-    el.innerHTML = `<p style="color:#aaa;font-size:.85rem;line-height:1.6">
-      No friends configured yet.<br>
-      Add friend UIDs to the <code>FRIENDS</code> array in <code>app.js</code>.<br>
-      (UIDs appear in the browser console when a friend signs in for the first time.)
-    </p>`;
-    return;
-  }
-
-  let html = '';
-  for (const friend of FRIENDS) {
-    try {
-      const snap = await getDoc(doc(db, 'users', friend.uid));
-      const data = snap.data() || {};
-      const name = data.displayName || friend.displayName || 'Friend';
-      const photo = data.photoURL || friend.photoURL || '';
-      const av   = photo
-        ? `<img class="friend-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-        : `<div class="friend-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
-      html += `<div class="friend-card" onclick="viewFriend('${esc(friend.uid)}','${esc(name)}')">
-  ${av}
-  <div class="friend-info"><h3>${esc(name)}</h3><p>${esc(data.email || '')}</p></div>
-</div>`;
-    } catch (_) { /* skip inaccessible friend */ }
-  }
-  el.innerHTML = html || '<p style="color:#aaa;font-size:.85rem">Could not load friend profiles.</p>';
-}
-
-window.viewFriend = async function(uid, displayName) {
-  viewingFriend = { uid, displayName };
-  document.getElementById('friends-list-view').classList.add('hidden');
-  document.getElementById('friend-collection-view').classList.remove('hidden');
-  document.getElementById('viewing-friend-label').textContent = `${displayName}'s collection`;
-
-  const contentEl = document.getElementById('friend-checklist-content');
-  contentEl.innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
-
-  try {
-    const [uSnap, cSnap] = await Promise.all([
-      getDoc(doc(db, 'users', uid)),
-      getDoc(doc(db, 'collections', uid)),
-    ]);
-    const fSets = uSnap.data()?.trackedSets || [];
-    const fColl = { ...cSnap.data() };
-    delete fColl.updatedAt;
-
-    let html = '';
-    for (const setId of fSets) {
-      const cards = await fetchSetCards(setId);
-      if (!cards.length) continue;
-      const setName = cards[0]?.set?.name || setId;
-      const nOwned  = cards.filter(c => fColl[c.id]).length;
-      const tiles   = cards.map(c => {
-        cardDataMap[c.id] = c;
-        const owned  = !!fColl[c.id];
-        const imgSrc = c.images?.small || '';
-        return `<div class="card-tile${owned ? ' owned' : ''}" data-id="${esc(c.id)}" data-name="${esc(c.name.toLowerCase())}">
-  <label class="owned-check readonly">
-    <input type="checkbox" ${owned ? 'checked' : ''} disabled>
-    <span class="checkmark">✓</span>
-  </label>
-  <div class="card-img-wrap" onclick="openModal('${esc(c.id)}')">
-    ${imgSrc ? `<img class="card-img" src="${esc(imgSrc)}" alt="${esc(c.name)}" loading="lazy">` : '<div class="no-img">No image</div>'}
-    <div class="card-overlay">View details</div>
-  </div>
-  <span class="card-name">${esc(c.name)}</span>
-  <span class="card-num">${esc(c.number)}</span>
-</div>`;
-      }).join('');
-
-      html += `<section class="set-section" data-set="${esc(setId)}">
-  <div class="set-header" onclick="toggleSection(this)">
-    <div class="set-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="set-name">${esc(setName)}</span>
-    </div>
-    <span class="set-stats">${nOwned} / ${cards.length} owned</span>
-  </div>
-  <div class="card-grid">${tiles}</div>
-</section>`;
-    }
-
-    contentEl.innerHTML = html || '<div class="loading">This friend has no tracked sets yet.</div>';
-    applyFriendFilters();
-    const t = contentEl.querySelectorAll('.card-tile').length;
-    const o = contentEl.querySelectorAll('.card-tile.owned').length;
-    const fStats = document.getElementById('friend-stats');
-    if (fStats) fStats.textContent = `${o} owned · ${t - o} missing`;
-  } catch (e) {
-    contentEl.innerHTML = `<div class="loading">Failed to load: ${esc(e.message)}</div>`;
-  }
+window.toggleWishlistSection = function(header) {
+  const section = header.closest('.wishlist-section');
+  section.classList.toggle('collapsed');
 };
 
-document.getElementById('back-to-friends').addEventListener('click', () => {
-  viewingFriend = null;
-  document.getElementById('friend-collection-view').classList.add('hidden');
-  document.getElementById('friends-list-view').classList.remove('hidden');
-});
+// ─────────────────────────────────────────────────────────────────
+// COMMUNITY TAB — public user profiles
+// ─────────────────────────────────────────────────────────────────
 
-function applyFriendFilters() {
-  const q    = (document.getElementById('friend-filter')?.value || '').toLowerCase();
-  const miss = document.getElementById('friend-missing-toggle')?.checked;
-  document.querySelectorAll('#friend-checklist-content .card-tile').forEach(tile => {
-    tile.classList.toggle('hidden',
-      (q && !tile.dataset.name.includes(q)) || (miss && tile.classList.contains('owned'))
-    );
-  });
+async function renderCommunity() {
+  const el = document.getElementById('community-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
+
+  try {
+    const q2 = query(fsCollection(db, 'users'), where('publicProfile', '==', true));
+    const snap = await getDocs(q2);
+    let html = '';
+
+    snap.forEach(d => {
+      const uid = d.id;
+      if (currentUser && uid === currentUser.uid) return;
+      const data = d.data();
+      const name = data.displayName || 'User';
+      const photo = data.photoURL || '';
+      const av = photo
+        ? `<img class="friend-avatar" src="${esc(photo)}" alt="${esc(name)}">`
+        : `<div class="friend-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
+      html += `<div class="friend-card" onclick="location.hash='#/profile/${esc(uid)}'">
+  ${av}
+  <div class="friend-info"><h3>${esc(name)}</h3></div>
+</div>`;
+    });
+
+    if (!html) {
+      el.innerHTML = '<div class="wantlist-empty"><p>No public profiles yet.</p></div>';
+      return;
+    }
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = `<div class="wantlist-empty"><p>Could not load profiles: ${esc(e.message)}</p></div>`;
+  }
 }
 
-document.getElementById('friend-filter').addEventListener('input', applyFriendFilters);
-document.getElementById('friend-missing-toggle').addEventListener('change', applyFriendFilters);
+window.togglePublicProfile = async function(checkbox) {
+  if (!currentUser) return;
+  const val = checkbox.checked;
+  await setDoc(doc(db, 'users', currentUser.uid), { publicProfile: val }, { merge: true });
+  showToast(val ? 'Your profile is now public' : 'Your profile is now private');
+};
 
 // ─────────────────────────────────────────────────────────────────
 // MODAL
@@ -911,20 +1053,212 @@ function closeModal() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────────────────────────
+
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SHARE
+// ─────────────────────────────────────────────────────────────────
+
+window.shareProfile = function() {
+  const uid = currentUser?.uid;
+  if (!uid) return;
+  const url = `${location.origin}${location.pathname}#/profile/${uid}`;
+  navigator.clipboard.writeText(url).then(() => showToast('Profile link copied!'));
+};
+
+window.shareList = function(listId) {
+  const uid = currentUser?.uid;
+  if (!uid) return;
+  const url = `${location.origin}${location.pathname}#/profile/${uid}/${listId}`;
+  navigator.clipboard.writeText(url).then(() => showToast('List link copied!'));
+};
+
+// ─────────────────────────────────────────────────────────────────
+// PROFILE VIEW + HASH ROUTING
+// ─────────────────────────────────────────────────────────────────
+
+let activeRoute = null;
+
+const VALID_TABS = ['checklist', 'search', 'wantlists', 'community'];
+
+function parseRoute() {
+  const hash = location.hash.slice(1);
+  const profileMatch = hash.match(/^\/profile\/([^/]+)(?:\/(.+))?$/);
+  if (profileMatch) return { type: 'profile', uid: profileMatch[1], listId: profileMatch[2] || null };
+  const tabMatch = hash.match(/^\/(\w+)$/);
+  if (tabMatch && VALID_TABS.includes(tabMatch[1])) return { type: 'tab', tab: tabMatch[1] };
+  if (hash === '/welcome' || hash === '/home' || hash === '/' || hash === '') return { type: 'home' };
+  return { type: 'home' };
+}
+
+function handleRoute() {
+  activeRoute = parseRoute();
+  if (activeRoute.type === 'profile') {
+    showProfileView(activeRoute.uid, activeRoute.listId);
+  } else if (activeRoute.type === 'tab') {
+    hideProfileView();
+    switchTab(activeRoute.tab, true);
+  } else if (activeRoute.type === 'home') {
+    hideProfileView();
+    showWelcome();
+  }
+}
+
+function showWelcome() {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'home'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('welcome-view').classList.remove('hidden');
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
+}
+
+function showProfileView(uid, listId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('profile-view').classList.remove('hidden');
+  document.querySelector('.tab-bar')?.classList.add('hidden');
+  renderProfile(uid, listId);
+}
+
+function hideProfileView() {
+  document.getElementById('profile-view').classList.add('hidden');
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
+}
+
+async function renderProfile(uid, filterListId) {
+  const headerEl = document.getElementById('profile-header');
+  const listsEl = document.getElementById('profile-wishlists');
+  headerEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  listsEl.innerHTML = '';
+
+  try {
+    const [uSnap, cSnap, wSnap] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      getDoc(doc(db, 'collections', uid)),
+      getDoc(doc(db, 'wantlists', uid)),
+    ]);
+
+    if (!uSnap.exists()) {
+      headerEl.innerHTML = '<div class="loading">User not found.</div>';
+      return;
+    }
+
+    const userData = uSnap.data();
+    const coll = { ...cSnap.data() }; delete coll.updatedAt;
+    const wlData = wSnap.data() || {};
+
+    const name = userData.displayName || 'User';
+    const photo = userData.photoURL || '';
+    const setsCount = (userData.trackedSets || []).length;
+    const cardsOwned = Object.keys(coll).length;
+
+    headerEl.innerHTML = `
+      ${photo
+        ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
+        : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
+      <div class="profile-name">${esc(name)}</div>
+      <div class="profile-stats-row">
+        <span>${setsCount} set${setsCount !== 1 ? 's' : ''} tracked</span>
+        <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
+      </div>`;
+
+    const lists = wlData._lists || {};
+    const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+
+    if (!listArr.length) {
+      listsEl.innerHTML = '<div class="wantlist-empty"><p>No wishlists yet.</p></div>';
+      return;
+    }
+
+    const filtered = filterListId ? listArr.filter(([id]) => id === filterListId) : listArr;
+    if (filterListId && !filtered.length) {
+      listsEl.innerHTML = '<div class="wantlist-empty"><p>List not found.</p></div>';
+      return;
+    }
+
+    let html = '';
+    for (const [listId, listInfo] of filtered) {
+      const entries = Object.entries(wlData)
+        .filter(([k, v]) => !k.startsWith('_') && v.list === listId)
+        .map(([pid, info]) => ({ pokemonId: pid, ...info }));
+
+      let totalCards = 0, totalOwned = 0, pokemonHtml = '';
+      for (const entry of entries) {
+        let cards = [];
+        try { cards = await searchPokemon(entry.displayName); } catch (_) {}
+        const nOwned = cards.filter(c => coll[c.id]).length;
+        totalCards += cards.length;
+        totalOwned += nOwned;
+        pokemonHtml += `<div class="wantlist-pokemon">
+  <div class="wantlist-pokemon-header">
+    <span class="wantlist-pokemon-name">${esc(entry.displayName)}</span>
+    <span class="wantlist-pokemon-progress">${nOwned}/${cards.length}</span>
+  </div>
+  <div class="card-grid">${cards.map(c => cardTile(c, { readonly: true, showSet: true })).join('')}</div>
+</div>`;
+      }
+
+      html += `<div class="wishlist-section" data-list-id="${esc(listId)}">
+  <div class="wishlist-header" onclick="toggleWishlistSection(this)">
+    <div class="wishlist-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="wishlist-name">${esc(listInfo.name)}</span>
+    </div>
+    <span class="wishlist-progress">${totalOwned} / ${totalCards} owned</span>
+  </div>
+  <div class="wishlist-body">${pokemonHtml || '<p class="wishlist-empty-list">Empty list.</p>'}</div>
+</div>`;
+    }
+
+    if (filterListId) {
+      html = `<div style="padding:8px 16px">
+  <a href="#/profile/${esc(uid)}" style="font-size:.78rem;color:var(--dark)">← See all wishlists</a>
+</div>` + html;
+    }
+
+    listsEl.innerHTML = html;
+  } catch (e) {
+    headerEl.innerHTML = `<div class="loading">Failed to load profile: ${esc(e.message)}</div>`;
+  }
+}
+
+document.getElementById('back-from-profile').addEventListener('click', () => {
+  location.hash = '';
+});
+
+document.getElementById('copy-profile-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(location.href).then(() => showToast('Link copied!'));
+});
+
+window.addEventListener('hashchange', handleRoute);
+
+// ─────────────────────────────────────────────────────────────────
 // TAB SWITCHING
 // ─────────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.tab-btn').forEach(btn =>
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab))
+  btn.addEventListener('click', () => {
+    location.hash = `#/${btn.dataset.tab}`;
+  })
 );
 
-async function switchTab(tab) {
+window.switchTab = async function switchTab(tab, fromRouter) {
   activeTab = tab;
+  if (!fromRouter) location.hash = `#/${tab}`;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
   document.getElementById(`tab-${tab}`).classList.remove('hidden');
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
   if (tab === 'wantlists') await renderWantlists();
-  if (tab === 'friends')   await renderFriendsList();
+  if (tab === 'community') await renderCommunity();
 }
 
 // ─────────────────────────────────────────────────────────────────
