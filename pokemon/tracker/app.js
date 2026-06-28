@@ -967,6 +967,7 @@ window.renderLists = async function renderLists() {
 
 window.openList = async function(listId) {
   viewingListId = listId === '__all__' ? null : listId;
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
   const el = document.getElementById('lists-content');
   const lists = getLists();
   const isAll = listId === '__all__';
@@ -1016,6 +1017,7 @@ window.openList = async function(listId) {
 window.openCollection = async function() {
   viewingListId = null;
   viewingCollection = true;
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
   const el = document.getElementById('lists-content');
   const ownedIds = Object.keys(collection);
 
@@ -1275,13 +1277,12 @@ function showProfileView(uid, listId) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
   document.getElementById('profile-view').classList.remove('hidden');
-  document.querySelector('.tab-bar')?.classList.add('hidden');
+  document.querySelector('.tab-bar')?.classList.remove('hidden');
   renderProfile(uid, listId);
 }
 
 function hideProfileView() {
   document.getElementById('profile-view').classList.add('hidden');
-  document.querySelector('.tab-bar')?.classList.remove('hidden');
 }
 
 async function renderProfile(uid, filterListId) {
@@ -1503,6 +1504,32 @@ window.switchTab = async function switchTab(tab, fromRouter) {
 // ─────────────────────────────────────────────────────────────────
 // IMPORT — owned_cards.json (on profile page)
 // ─────────────────────────────────────────────────────────────────
+
+window.exportCollection = function() {
+  if (!currentUser) return;
+  const data = { ...collection };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `porydex-collection-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Collection exported');
+};
+
+window.exportLists = function() {
+  if (!currentUser) return;
+  const data = { ...wantlists };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `porydex-lists-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Lists exported');
+};
 
 document.getElementById('import-file-input')?.addEventListener('change', async e => {
   const file = e.target.files[0];

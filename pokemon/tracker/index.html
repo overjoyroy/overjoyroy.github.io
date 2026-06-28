@@ -208,6 +208,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .settings-hint{font-size:.76rem;color:#aaa;margin-bottom:8px}
 .settings-import-btn{background:#888;color:#fff;border:none;padding:7px 16px;border-radius:8px;font-size:.78rem;cursor:pointer}
 .settings-import-btn:hover{background:#666}
+.settings-export-btn{background:var(--dark);color:#fff;border:none;padding:7px 16px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.settings-export-btn:hover{background:#2a2a4e}
+.settings-data-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
 /* ── Welcome page ── */
 #welcome-view{max-width:600px;margin:0 auto;padding:32px 20px 48px;text-align:center}
@@ -379,8 +382,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       </div>
       <div class="settings-section">
         <h3>Data</h3>
-        <p class="settings-hint">Import a collection JSON file from the migration script.</p>
-        <button class="settings-import-btn" onclick="document.getElementById('import-file-input').click()">Import Collection</button>
+        <div class="settings-data-row">
+          <div>
+            <p class="settings-hint">Export your owned cards as a JSON file.</p>
+            <button class="settings-export-btn" onclick="exportCollection()">Export Owned Cards</button>
+          </div>
+          <div>
+            <p class="settings-hint">Export your lists and their contents.</p>
+            <button class="settings-export-btn" onclick="exportLists()">Export Lists</button>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <p class="settings-hint">Import a collection JSON file (from export or migration script).</p>
+          <button class="settings-import-btn" onclick="document.getElementById('import-file-input').click()">Import Collection</button>
+        </div>
       </div>
     </div>
   </div>
