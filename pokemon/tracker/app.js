@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────
-// Pokemon Card Tracker — app.js
+// Porydex — app.js
 // Requires firebase-config.js to expose window.FIREBASE_CONFIG
 // ─────────────────────────────────────────────────────────────────
 
@@ -16,14 +16,11 @@ import {
 
 // ─────────────────────────────────────────────────────────────────
 // CONFIGURATION
-// Edit ALLOWED_EMAILS to control who can sign in.
 // ─────────────────────────────────────────────────────────────────
 
 const ALLOWED_EMAILS = [
   'jroy4@umbc.edu',
-  // 'friend@gmail.com',
 ];
-
 
 const TCG_API = 'https://api.pokemontcg.io/v2';
 
@@ -50,19 +47,29 @@ const db    = initializeFirestore(fbApp, { localCache: persistentLocalCache() })
 // ─────────────────────────────────────────────────────────────────
 
 let currentUser    = null;
-let isGuest        = false;  // true for read-only anonymous sessions
-let trackedSets    = [];     // set IDs the user has chosen to track
+let isGuest        = false;
 let collection     = {};     // { cardId: true } owned cards
-let wantlists      = {};     // v2 multi-list format (see getListEntries)
-let collUnsub      = null;   // Firestore listener unsubscribe fns
+let wantlists      = {};     // v3 multi-list format
+let collUnsub      = null;
 let wlUnsub        = null;
 
-let allSets        = null;   // cached list of all TCG sets
+let allSets        = null;
 let cardDataMap    = {};     // { cardId: apiCardObject } for modal lookups
 
-let activeTab      = 'checklist';
+let activeTab      = 'search';
 let modalCardId    = null;
-let pendingSetSel  = null;   // Set() in-progress selection in set picker
+let activeRoute    = null;
+
+// Multi-select state
+let selectMode     = false;
+let selectedCards  = new Set();
+let selectedSets   = new Set();
+let addingToList   = null;    // list ID when in "adding to list" mode
+
+// Search filter state
+let activeFilters  = [];      // [{ type, value, label }]
+let searchTimer    = null;
+let searchSeq      = 0;
 
 // ─────────────────────────────────────────────────────────────────
 // UTILITY
@@ -90,53 +97,143 @@ function bestPrice(prices) {
   return null;
 }
 
+function userName(data) {
+  return data?.customName || data?.displayName || 'User';
+}
+
 // ─────────────────────────────────────────────────────────────────
-// WANTLIST HELPERS — multi-list data model
+// V3 LIST HELPERS
 // ─────────────────────────────────────────────────────────────────
 
-function getWantlistLists() {
+function getLists() {
   return wantlists._lists || {};
 }
 
-function getListEntries(listId) {
+function getListItems(listId) {
   return Object.entries(wantlists)
     .filter(([k, v]) => !k.startsWith('_') && v.list === listId)
-    .map(([pid, info]) => ({ pokemonId: pid, ...info }));
+    .map(([itemId, info]) => ({ itemId, ...info }));
 }
 
-function getAllListEntries() {
-  return Object.entries(wantlists)
-    .filter(([k]) => !k.startsWith('_'))
-    .map(([pid, info]) => ({ pokemonId: pid, ...info }));
-}
+async function resolveListCards(listId) {
+  const items = getListItems(listId);
+  const allCards = [];
+  const setItems = items.filter(i => i.type === 'set');
+  const cardItems = items.filter(i => i.type === 'card');
 
-function isTracked(pokemonId) {
-  return !!(wantlists[pokemonId] && !pokemonId.startsWith('_'));
-}
-
-async function migrateWantlistIfNeeded(data, uid) {
-  if (!data || Object.keys(data).length === 0) return data || {};
-  if (data._version === 2) return data;
-
-  const defaultListId = `list_${Date.now()}`;
-  const migrated = {
-    _version: 2,
-    _lists: {
-      [defaultListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 }
-    },
-    _defaultList: defaultListId,
-  };
-
-  for (const [pid, info] of Object.entries(data)) {
-    migrated[pid] = { ...info, list: defaultListId };
+  for (const item of setItems) {
+    const cards = await fetchSetCards(item.setId);
+    allCards.push(...cards);
   }
 
-  await setDoc(doc(db, 'wantlists', uid), migrated);
-  return migrated;
+  if (cardItems.length) {
+    const bySet = {};
+    for (const item of cardItems) {
+      (bySet[item.setId] = bySet[item.setId] || []).push(item.cardId);
+    }
+    for (const [setId, ids] of Object.entries(bySet)) {
+      const cards = await fetchSetCards(setId);
+      const idSet = new Set(ids);
+      allCards.push(...cards.filter(c => idSet.has(c.id)));
+    }
+  }
+
+  const seen = new Set();
+  return allCards.filter(c => {
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
 }
 
+async function addItemsToList(listId, cards, sets) {
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const delta = {};
+  let counter = 0;
+  const ts = Date.now();
+
+  for (const setId of (sets || [])) {
+    delta[`item_${ts}_s${counter++}`] = { type: 'set', setId, list: listId };
+  }
+  for (const card of (cards || [])) {
+    delta[`item_${ts}_c${counter++}`] = {
+      type: 'card', cardId: card.id, setId: card.set?.id || '', list: listId
+    };
+  }
+
+  if (!Object.keys(delta).length) return;
+
+  await updateDoc(ref, delta).catch(async e => {
+    if (e.code === 'not-found') {
+      await setDoc(ref, { _version: 3, _lists: { [listId]: { name: 'My List', createdAt: serverTimestamp(), order: 0 } }, ...delta });
+    } else throw e;
+  });
+}
+
+window.removeItem = async function(itemId) {
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  await updateDoc(ref, { [itemId]: deleteField() });
+};
+
+window.createList = async function(name) {
+  if (!name || !currentUser) return null;
+  const listId = `list_${Date.now()}`;
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const lists = getLists();
+  const order = Object.keys(lists).length;
+  const delta = { _version: 3, [`_lists.${listId}`]: { name, createdAt: serverTimestamp(), order } };
+  await updateDoc(ref, delta).catch(async e => {
+    if (e.code === 'not-found') {
+      await setDoc(ref, { _version: 3, _lists: { [listId]: { name, createdAt: serverTimestamp(), order: 0 } } });
+    } else throw e;
+  });
+  return listId;
+};
+
+window.renameList = async function(listId) {
+  const lists = getLists();
+  const current = lists[listId]?.name || '';
+  const name = prompt('Rename list:', current);
+  if (!name || name === current) return;
+  await updateDoc(doc(db, 'wantlists', currentUser.uid), { [`_lists.${listId}.name`]: name });
+};
+
+window.deleteList = async function(listId) {
+  const lists = getLists();
+  const name = lists[listId]?.name || 'this list';
+  if (!confirm(`Delete "${name}" and all its items?`)) return;
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const updates = { [`_lists.${listId}`]: deleteField() };
+  const items = getListItems(listId);
+  for (const item of items) updates[item.itemId] = deleteField();
+  await updateDoc(ref, updates);
+};
+
+window.shareList = function(listId) {
+  const uid = currentUser?.uid;
+  if (!uid) return;
+  const url = `${location.origin}${location.pathname}#/profile/${uid}/${listId}`;
+  navigator.clipboard.writeText(url).then(() => showToast('List link copied!'));
+};
+
+window.shareProfile = function() {
+  const uid = currentUser?.uid;
+  if (!uid) return;
+  const url = `${location.origin}${location.pathname}#/profile/${uid}`;
+  navigator.clipboard.writeText(url).then(() => showToast('Profile link copied!'));
+};
+
+window.toggleListMenu = function(listId) {
+  const menu = document.getElementById(`menu-${listId}`);
+  if (!menu) return;
+  document.querySelectorAll('.list-menu:not(.hidden)').forEach(m => {
+    if (m !== menu) m.classList.add('hidden');
+  });
+  menu.classList.toggle('hidden');
+};
+
 // ─────────────────────────────────────────────────────────────────
-// AUTH — simple: guest by default, popup sign-in
+// AUTH
 // ─────────────────────────────────────────────────────────────────
 
 document.getElementById('topbar-signin-btn').addEventListener('click', async () => {
@@ -190,39 +287,20 @@ async function bootApp() {
     signInBtn.style.display = 'none';
   }
 
-  // Guests have no account — hide every write-capable control
-  document.getElementById('manage-sets-btn').classList.toggle('hidden', isGuest);
+  // Hide tabs that don't apply to guests
+  document.querySelectorAll('.tab-btn[data-tab="lists"]').forEach(b => b.classList.toggle('hidden', isGuest));
   document.getElementById('modal-owned-btn').classList.toggle('hidden', isGuest);
-  document.getElementById('new-list-btn').classList.toggle('hidden', isGuest);
-  document.getElementById('share-my-profile-btn').classList.toggle('hidden', isGuest);
   document.getElementById('public-profile-toggle').style.display = isGuest ? 'none' : '';
 
-  // Hide tabs that don't apply to guests
-  document.querySelectorAll('.tab-btn[data-tab="checklist"]').forEach(b => b.classList.toggle('hidden', isGuest));
-  document.querySelectorAll('.tab-btn[data-tab="wantlists"]').forEach(b => b.classList.toggle('hidden', isGuest));
-
-  // Reveal the app now that auth state is resolved and UI is configured
   document.getElementById('app').classList.remove('hidden');
 
   if (isGuest) {
-    trackedSets = []; collection = {}; wantlists = {};
+    collection = {}; wantlists = {};
     await fetchAllSets();
     handleRoute();
     return;
   }
 
-  if (!localStorage.getItem('import_dismissed')) {
-    document.getElementById('import-banner').classList.remove('hidden');
-  }
-
-  // Render immediately from localStorage cache (stale-while-revalidate)
-  const cachedSets = JSON.parse(localStorage.getItem('porydex_tracked_sets') || 'null');
-  if (cachedSets) {
-    trackedSets = cachedSets;
-    renderChecklist(); // don't await — let it run while Firestore loads
-  }
-
-  // Kick off Firestore + set list fetch in parallel
   const [userSnap] = await Promise.all([
     getDoc(doc(db, 'users', currentUser.uid)),
     setDoc(doc(db, 'users', currentUser.uid), {
@@ -230,40 +308,26 @@ async function bootApp() {
       email:       currentUser.email,
       photoURL:    currentUser.photoURL || '',
     }, { merge: true }),
-    fetchAllSets(), // warm the IndexedDB cache now
+    fetchAllSets(),
   ]);
 
   const userData = userSnap.data() || {};
-  const freshSets = userData.trackedSets || [];
   document.getElementById('public-profile-cb').checked = !!userData.publicProfile;
 
-  // Re-render only if tracked sets changed from the cached version
-  if (JSON.stringify(freshSets) !== JSON.stringify(trackedSets)) {
-    trackedSets = freshSets;
-    localStorage.setItem('porydex_tracked_sets', JSON.stringify(trackedSets));
-    await renderChecklist();
-  } else {
-    trackedSets = freshSets;
-    localStorage.setItem('porydex_tracked_sets', JSON.stringify(trackedSets));
-  }
-
-  // Start Firestore listeners
   listenCollection();
   listenWantlists();
-
-  // Check for profile URL on load
   handleRoute();
 }
 
 function teardown() {
   if (collUnsub) { collUnsub(); collUnsub = null; }
   if (wlUnsub)   { wlUnsub();   wlUnsub  = null; }
-  currentUser = null; isGuest = false; trackedSets = []; collection = {}; wantlists = {}; cardDataMap = {};
+  currentUser = null; isGuest = false; collection = {}; wantlists = {}; cardDataMap = {};
+  exitSelectMode();
 }
 
-
 // ─────────────────────────────────────────────────────────────────
-// FIRESTORE — COLLECTION LISTENER
+// FIRESTORE LISTENERS
 // ─────────────────────────────────────────────────────────────────
 
 function listenCollection() {
@@ -272,14 +336,12 @@ function listenCollection() {
     const data = { ...snap.data() };
     delete data.updatedAt;
     collection = data;
-    // Sync all rendered tiles without re-rendering
     document.querySelectorAll('.card-tile[data-id]').forEach(tile => {
       const owned = !!collection[tile.dataset.id];
       tile.classList.toggle('owned', owned);
       const cb = tile.querySelector('input[type=checkbox]');
       if (cb && !cb.disabled) cb.checked = owned;
     });
-    refreshStats();
     if (modalCardId) syncModalBtn(!!collection[modalCardId]);
   });
 }
@@ -288,22 +350,24 @@ function listenWantlists() {
   if (wlUnsub) wlUnsub();
   wlUnsub = onSnapshot(doc(db, 'wantlists', currentUser.uid), async snap => {
     const data = snap.data() || {};
-    if (Object.keys(data).length && data._version !== 2) {
-      wantlists = await migrateWantlistIfNeeded(data, currentUser.uid);
+    if (Object.keys(data).length && data._version !== 3) {
+      console.info('[Porydex] Migrating wantlist to v3 (fresh start)');
+      const fresh = { _version: 3, _lists: {} };
+      await setDoc(doc(db, 'wantlists', currentUser.uid), fresh);
+      wantlists = fresh;
     } else {
-      wantlists = data;
+      wantlists = data._version === 3 ? data : { _version: 3, _lists: {} };
     }
-    if (activeTab === 'wantlists') renderWantlists();
+    if (activeTab === 'lists') renderLists();
   });
 }
 
-// Optimistic toggle: update local state + DOM immediately, write Firestore in background
+// Optimistic toggle
 window.handleToggle = async function(checkbox, cardId) {
   if (!currentUser) return;
   const owned = checkbox.checked;
   if (owned) collection[cardId] = true; else delete collection[cardId];
   syncTiles(cardId, owned);
-  refreshStats();
   if (modalCardId === cardId) syncModalBtn(owned);
 
   try {
@@ -320,7 +384,6 @@ window.handleToggle = async function(checkbox, cardId) {
     if (owned) delete collection[cardId]; else collection[cardId] = true;
     checkbox.checked = !owned;
     syncTiles(cardId, !owned);
-    refreshStats();
   }
 };
 
@@ -332,184 +395,10 @@ function syncTiles(cardId, owned) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// FIRESTORE — TRACKED SETS + WANT LISTS WRITES
+// PERSISTENT CARD CACHE — IndexedDB + sessionStorage
 // ─────────────────────────────────────────────────────────────────
 
-async function saveTrackedSets(ids) {
-  trackedSets = ids;
-  localStorage.setItem('porydex_tracked_sets', JSON.stringify(ids));
-  await setDoc(doc(db, 'users', currentUser.uid), { trackedSets: ids }, { merge: true });
-}
-
-window.addToWantlist = async function(pokemonId, displayName, listId) {
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  const targetList = listId || wantlists._defaultList;
-
-  if (!targetList) {
-    const newListId = `list_${Date.now()}`;
-    const init = {
-      _version: 2,
-      _lists: { [newListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 } },
-      _defaultList: newListId,
-      [pokemonId]: { displayName, addedAt: serverTimestamp(), list: newListId },
-    };
-    await setDoc(ref, init, { merge: true });
-  } else {
-    const delta = { [pokemonId]: { displayName, addedAt: serverTimestamp(), list: targetList } };
-    await updateDoc(ref, delta).catch(async e => {
-      if (e.code === 'not-found') {
-        const newListId = `list_${Date.now()}`;
-        await setDoc(ref, {
-          _version: 2,
-          _lists: { [newListId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 } },
-          _defaultList: newListId,
-          [pokemonId]: { displayName, addedAt: serverTimestamp(), list: newListId },
-        });
-      } else throw e;
-    });
-  }
-
-  document.querySelectorAll(`.track-all-btn[data-pokemon="${CSS.escape(pokemonId)}"]`).forEach(btn => {
-    btn.textContent = `✓ Tracking all ${displayName}`;
-    btn.classList.add('tracked');
-  });
-  dismissListPicker();
-};
-
-window.removeFromWantlist = async function(pokemonId) {
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  await updateDoc(ref, { [pokemonId]: deleteField() });
-};
-
-// ─────────────────────────────────────────────────────────────────
-// WANTLIST — LIST MANAGEMENT
-// ─────────────────────────────────────────────────────────────────
-
-window.createWishlist = async function(name) {
-  if (!name || !currentUser) return;
-  const listId = `list_${Date.now()}`;
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  const lists = getWantlistLists();
-  const order = Object.keys(lists).length;
-  const delta = {
-    _version: 2,
-    [`_lists.${listId}`]: { name, createdAt: serverTimestamp(), order },
-  };
-  if (!wantlists._defaultList) delta._defaultList = listId;
-  await updateDoc(ref, delta).catch(async e => {
-    if (e.code === 'not-found') {
-      await setDoc(ref, {
-        _version: 2,
-        _lists: { [listId]: { name, createdAt: serverTimestamp(), order: 0 } },
-        _defaultList: listId,
-      });
-    } else throw e;
-  });
-};
-
-window.renameWishlist = async function(listId) {
-  const lists = getWantlistLists();
-  const current = lists[listId]?.name || '';
-  const name = prompt('Rename list:', current);
-  if (!name || name === current) return;
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  await updateDoc(ref, { [`_lists.${listId}.name`]: name });
-};
-
-window.deleteWishlist = async function(listId) {
-  const lists = getWantlistLists();
-  const name = lists[listId]?.name || 'this list';
-  if (!confirm(`Delete "${name}" and all its tracked Pokémon?`)) return;
-
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  const updates = { [`_lists.${listId}`]: deleteField() };
-  const entries = getListEntries(listId);
-  for (const e of entries) updates[e.pokemonId] = deleteField();
-  if (wantlists._defaultList === listId) {
-    const remaining = Object.keys(lists).filter(k => k !== listId);
-    updates._defaultList = remaining[0] || deleteField();
-  }
-  await updateDoc(ref, updates);
-};
-
-window.setDefaultWishlist = async function(listId) {
-  const ref = doc(db, 'wantlists', currentUser.uid);
-  await updateDoc(ref, { _defaultList: listId });
-};
-
-window.toggleListMenu = function(listId) {
-  const menu = document.getElementById(`menu-${listId}`);
-  if (!menu) return;
-  document.querySelectorAll('.wishlist-menu:not(.hidden)').forEach(m => {
-    if (m !== menu) m.classList.add('hidden');
-  });
-  menu.classList.toggle('hidden');
-};
-
-window.promptNewList = function() {
-  const name = prompt('New list name:');
-  if (name) createWishlist(name.trim());
-};
-
-// ─────────────────────────────────────────────────────────────────
-// SEARCH — LIST PICKER DROPDOWN
-// ─────────────────────────────────────────────────────────────────
-
-window.showListPicker = function(pokemonId, displayName, btn) {
-  dismissListPicker();
-  const lists = getWantlistLists();
-  const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-
-  const picker = document.createElement('div');
-  picker.className = 'list-picker';
-  picker.id = 'active-list-picker';
-
-  for (const [lid, info] of listArr) {
-    const item = document.createElement('div');
-    item.className = 'list-picker-item';
-    item.textContent = info.name;
-    if (lid === wantlists._defaultList) item.textContent += ' ★';
-    item.onclick = () => addToWantlist(pokemonId, displayName, lid);
-    picker.appendChild(item);
-  }
-
-  const create = document.createElement('div');
-  create.className = 'list-picker-item list-picker-create';
-  create.textContent = '+ New list…';
-  create.onclick = async () => {
-    const name = prompt('New list name:');
-    if (!name) return;
-    await createWishlist(name.trim());
-    const newLists = getWantlistLists();
-    const newest = Object.entries(newLists).sort((a, b) => (b[1].order || 0) - (a[1].order || 0))[0];
-    if (newest) await addToWantlist(pokemonId, displayName, newest[0]);
-    dismissListPicker();
-  };
-  picker.appendChild(create);
-
-  btn.style.position = 'relative';
-  btn.appendChild(picker);
-};
-
-function dismissListPicker() {
-  const existing = document.getElementById('active-list-picker');
-  if (existing) existing.remove();
-}
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('.list-picker') && !e.target.closest('.track-all-btn')) {
-    dismissListPicker();
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────
-// POKEMON TCG API + CACHE
-// ─────────────────────────────────────────────────────────────────
-// PERSISTENT CARD CACHE — IndexedDB, 7-day TTL
-// Avoids re-hitting the Pokemon TCG API every session.
-// ─────────────────────────────────────────────────────────────────
-
-const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 let _idb = null;
 
 function openCacheDB() {
@@ -523,32 +412,26 @@ function openCacheDB() {
 }
 
 async function cacheGet(key) {
-  // L1: sessionStorage — synchronous, fast for same-session reads
   const sess = sessionStorage.getItem(key);
   if (sess) { try { return JSON.parse(sess); } catch (_) {} }
-
-  // L2: IndexedDB — persistent across sessions
   try {
-    const db = await openCacheDB();
+    const idb = await openCacheDB();
     const entry = await new Promise((res, rej) => {
-      const req = db.transaction('cache').objectStore('cache').get(key);
+      const req = idb.transaction('cache').objectStore('cache').get(key);
       req.onsuccess = e => res(e.target.result);
       req.onerror = rej;
     });
     if (!entry) return null;
     if (Date.now() - entry.ts > CACHE_TTL) return null;
-    // Promote to L1 so subsequent reads this session are instant
     try { sessionStorage.setItem(key, JSON.stringify(entry.data)); } catch (_) {}
     return entry.data;
   } catch (_) { return null; }
 }
 
 function cacheSet(key, data) {
-  // Write to L1 synchronously so it's available immediately
   try { sessionStorage.setItem(key, JSON.stringify(data)); } catch (_) {}
-  // Write to L2 in the background — don't block the caller
-  openCacheDB().then(db => {
-    const tx = db.transaction('cache', 'readwrite');
+  openCacheDB().then(idb => {
+    const tx = idb.transaction('cache', 'readwrite');
     tx.objectStore('cache').put({ data, ts: Date.now() }, key);
   }).catch(() => {});
 }
@@ -563,9 +446,13 @@ async function tcgFetch(url) {
   return data;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// TCG API
+// ─────────────────────────────────────────────────────────────────
+
 async function fetchAllSets() {
   if (allSets) return allSets;
-  const data = await tcgFetch(`${TCG_API}/sets?pageSize=250&orderBy=releaseDate&select=id,name,series,releaseDate,total`);
+  const data = await tcgFetch(`${TCG_API}/sets?pageSize=250&orderBy=releaseDate&select=id,name,series,releaseDate,total,images`);
   allSets = data.data || [];
   return allSets;
 }
@@ -589,12 +476,12 @@ async function fetchSetCards(setId) {
   return cards;
 }
 
-async function searchPokemon(query) {
-  const key = `search_v2_${query.toLowerCase().replace(/\W+/g, '_')}`;
+async function searchCards(queryStr) {
+  const key = `search_v3_${queryStr.toLowerCase().replace(/\W+/g, '_')}`;
   const hit = await cacheGet(key);
   if (hit) return hit;
   const data = await tcgFetch(
-    `${TCG_API}/cards?q=name:${encodeURIComponent('*' + query + '*')}&pageSize=50&orderBy=set.releaseDate` +
+    `${TCG_API}/cards?q=${encodeURIComponent(queryStr)}&pageSize=50&orderBy=set.releaseDate` +
     `&select=id,name,number,set,images,tcgplayer`
   );
   const cards = data.data || [];
@@ -603,27 +490,33 @@ async function searchPokemon(query) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SHARED CARD TILE HTML
+// CARD TILE
 // ─────────────────────────────────────────────────────────────────
 
-function cardTile(card, { readonly = false, showSet = false } = {}) {
-  cardDataMap[card.id] = card;  // for modal lookups
-  const owned  = !!collection[card.id];
+function cardTile(card, { readonly = false, showSet = false, selectable = false, collectionOverride = null } = {}) {
+  cardDataMap[card.id] = card;
+  const coll   = collectionOverride || collection;
+  const owned  = !!coll[card.id];
   const ro     = readonly || isGuest;
   const imgSrc = card.images?.small || '';
   const price  = bestPrice(card.tcgplayer?.prices);
+  const sel    = selectable && selectedCards.has(card.id);
   const img    = imgSrc
     ? `<img class="card-img" src="${esc(imgSrc)}" alt="${esc(card.name)}" loading="lazy">`
     : `<div class="no-img">No image</div>`;
 
-  return `<div class="card-tile${owned ? ' owned' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
-  <label class="owned-check${ro ? ' readonly' : ''}">
-    <input type="checkbox" ${owned ? 'checked' : ''} ${ro ? 'disabled' : ''}
+  const clickAction = selectable
+    ? `toggleCardSelect('${esc(card.id)}')`
+    : `openModal('${esc(card.id)}')`;
+
+  return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
+  ${!ro ? `<label class="owned-check">
+    <input type="checkbox" ${owned ? 'checked' : ''}
            onchange="handleToggle(this,'${esc(card.id)}')">
     <span class="checkmark">✓</span>
-  </label>
-  <div class="card-img-wrap" onclick="openModal('${esc(card.id)}')">
-    ${img}<div class="card-overlay">View details</div>
+  </label>` : ''}
+  <div class="card-img-wrap" onclick="${clickAction}">
+    ${img}<div class="card-overlay">${selectable ? (sel ? 'Selected' : 'Select') : 'View details'}</div>
   </div>
   <span class="card-name">${esc(card.name)}</span>
   <span class="card-num">${esc(card.number)}</span>
@@ -633,225 +526,269 @@ function cardTile(card, { readonly = false, showSet = false } = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// CHECKLIST TAB
+// MULTI-SELECT
 // ─────────────────────────────────────────────────────────────────
 
-async function renderChecklist() {
-  const el = document.getElementById('checklist-content');
+function enterSelectMode(listId) {
+  selectMode = true;
+  addingToList = listId || null;
+  selectedCards.clear();
+  selectedSets.clear();
+  updateActionBar();
+}
 
-  if (!trackedSets.length) {
-    if (isGuest) {
-      el.innerHTML = `<div class="loading">
-        <p style="color:#888">Sign in with Google to track your own collection.</p>
-      </div>`;
-      return;
+function exitSelectMode() {
+  selectMode = false;
+  addingToList = null;
+  selectedCards.clear();
+  selectedSets.clear();
+  updateActionBar();
+  document.querySelectorAll('.card-tile.selected').forEach(t => t.classList.remove('selected'));
+}
+
+window.toggleCardSelect = function(cardId) {
+  if (!selectMode) {
+    if (isGuest) { openModal(cardId); return; }
+    enterSelectMode(null);
+  }
+  if (selectedCards.has(cardId)) {
+    selectedCards.delete(cardId);
+    document.querySelectorAll(`.card-tile[data-id="${CSS.escape(cardId)}"]`).forEach(t => t.classList.remove('selected'));
+  } else {
+    selectedCards.add(cardId);
+    document.querySelectorAll(`.card-tile[data-id="${CSS.escape(cardId)}"]`).forEach(t => t.classList.add('selected'));
+  }
+  if (!selectedCards.size && !selectedSets.size) exitSelectMode();
+  else updateActionBar();
+};
+
+window.selectAllVisible = function() {
+  if (!selectMode) enterSelectMode(null);
+  document.querySelectorAll('#search-results .card-tile').forEach(tile => {
+    const id = tile.dataset.id;
+    if (id && !selectedCards.has(id)) {
+      selectedCards.add(id);
+      tile.classList.add('selected');
     }
-    el.innerHTML = `<div class="loading">
-      <p style="color:#888;margin-bottom:16px">Pick some sets to start tracking your collection.</p>
-      <button onclick="openSetPicker()"
-        style="background:#1a1a2e;color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:.9rem;cursor:pointer">
-        Choose Sets
-      </button>
-    </div>`;
-    openSetPicker();
+  });
+  updateActionBar();
+};
+
+window.selectEntireSet = function(setId) {
+  if (!selectMode) enterSelectMode(null);
+  selectedSets.add(setId);
+  updateActionBar();
+  showToast('Entire set selected');
+};
+
+function updateActionBar() {
+  const bar = document.getElementById('action-bar');
+  if (!bar) return;
+  const count = selectedCards.size + (selectedSets.size ? ` + ${selectedSets.size} set${selectedSets.size > 1 ? 's' : ''}` : '');
+  if (!selectMode || (!selectedCards.size && !selectedSets.size)) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+  document.getElementById('action-bar-count').textContent =
+    `${selectedCards.size} card${selectedCards.size !== 1 ? 's' : ''}${selectedSets.size ? ` + ${selectedSets.size} set${selectedSets.size !== 1 ? 's' : ''}` : ''} selected`;
+}
+
+window.commitSelection = async function(listId) {
+  if (!listId) {
+    const name = prompt('New list name:');
+    if (!name) return;
+    listId = await createList(name.trim());
+    if (!listId) return;
+  }
+
+  const cards = [...selectedCards].map(id => cardDataMap[id]).filter(Boolean);
+  const sets = [...selectedSets];
+  await addItemsToList(listId, cards, sets);
+
+  const lists = getLists();
+  const listName = lists[listId]?.name || 'list';
+  showToast(`Added to ${listName}`);
+  exitSelectMode();
+};
+
+window.cancelSelection = function() { exitSelectMode(); };
+
+window.showActionListPicker = function() {
+  const picker = document.getElementById('action-list-picker');
+  if (!picker.classList.contains('hidden')) { picker.classList.add('hidden'); return; }
+
+  if (addingToList) {
+    commitSelection(addingToList);
     return;
   }
 
-  // Render headers immediately using the cached set list — no per-set API calls yet
-  const allSetsData = await fetchAllSets();
-  const setMeta = Object.fromEntries(allSetsData.map(s => [s.id, s]));
+  const lists = getLists();
+  const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
 
-  let html = '';
-  for (const setId of trackedSets) {
-    const meta = setMeta[setId] || {};
-    const name  = meta.name || setId;
-    const total = meta.total || '?';
-    html += `<section class="set-section collapsed" data-set="${esc(setId)}" data-loaded="false">
-  <div class="set-header" onclick="toggleSection(this)">
-    <div class="set-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="set-name">${esc(name)}</span>
-    </div>
-    <span class="set-stats" data-set-id="${esc(setId)}">— / ${total} owned</span>
-  </div>
-  <div class="card-grid" data-set-grid="${esc(setId)}">
-    <div class="loading" style="grid-column:1/-1;padding:24px"><div class="spinner"></div></div>
-  </div>
-</section>`;
-  }
+  picker.innerHTML = listArr.map(([lid, info]) =>
+    `<div class="action-list-picker-item" onclick="commitSelection('${esc(lid)}')">${esc(info.name)}</div>`
+  ).join('') +
+    `<div class="action-list-picker-item action-list-picker-create" onclick="commitSelection(null)">+ New list…</div>`;
 
-  el.innerHTML = html || '<div class="loading">No sets found.</div>';
-}
-
-function setSection(setId, setName, total, tilesHtml) {
-  return `<section class="set-section collapsed" data-set="${esc(setId)}">
-  <div class="set-header" onclick="toggleSection(this)">
-    <div class="set-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="set-name">${esc(setName)}</span>
-    </div>
-    <span class="set-stats" data-set-id="${esc(setId)}">0 / ${total} owned</span>
-  </div>
-  <div class="card-grid">${tilesHtml}</div>
-</section>`;
-}
-
-window.toggleSection = async function(header) {
-  const section = header.closest('.set-section, .wantlist-item');
-  section.classList.toggle('collapsed');
-
-  // Lazy-load cards the first time a set section is expanded
-  if (!section.classList.contains('collapsed') && section.dataset.loaded === 'false') {
-    const setId = section.dataset.set;
-    const grid  = section.querySelector(`[data-set-grid]`);
-    if (!setId || !grid) return;
-    section.dataset.loaded = 'true';
-    const cards = await fetchSetCards(setId);
-    grid.innerHTML = cards.map(c => cardTile(c)).join('') || '<div class="loading">No cards found.</div>';
-    applyChecklistFilters();
-    refreshStats();
-  }
-};
-
-window.toggleAllSections = async function() {
-  const sections = [...document.querySelectorAll('#checklist-content .set-section')];
-  const anyExpanded = sections.some(s => !s.classList.contains('collapsed'));
-  sections.forEach(s => s.classList.toggle('collapsed', anyExpanded));
-  const btn = document.getElementById('toggle-all-btn');
-  if (btn) btn.textContent = anyExpanded ? 'Expand all' : 'Collapse all';
-
-  // Lazy-load any unloaded sections that are now expanded
-  if (!anyExpanded) {
-    for (const section of sections) {
-      if (section.dataset.loaded === 'false') {
-        const setId = section.dataset.set;
-        const grid  = section.querySelector(`[data-set-grid]`);
-        if (!setId || !grid) continue;
-        section.dataset.loaded = 'true';
-        const cards = await fetchSetCards(setId);
-        grid.innerHTML = cards.map(c => cardTile(c)).join('') || '';
-      }
-    }
-    applyChecklistFilters();
-    refreshStats();
-  }
-};
-
-function refreshStats() {
-  // Top-level checklist stats
-  const allTiles   = document.querySelectorAll('#checklist-content .card-tile:not(.hidden)');
-  const nOwned     = [...allTiles].filter(t => collection[t.dataset.id]).length;
-  const statsEl    = document.getElementById('checklist-stats');
-  if (statsEl) statsEl.textContent = `${nOwned} owned · ${allTiles.length - nOwned} missing`;
-
-  // Per-set stats
-  document.querySelectorAll('.set-stats[data-set-id]').forEach(span => {
-    const tiles    = document.querySelectorAll(`.set-section[data-set="${span.dataset.setId}"] .card-tile`);
-    const setOwned = [...tiles].filter(t => collection[t.dataset.id]).length;
-    span.textContent = `${setOwned} / ${tiles.length} owned`;
-  });
-}
-
-function applyChecklistFilters() {
-  const q    = (document.getElementById('checklist-filter')?.value || '').toLowerCase();
-  const miss = document.getElementById('missing-only-toggle')?.checked;
-  document.querySelectorAll('#checklist-content .card-tile').forEach(tile => {
-    tile.classList.toggle('hidden',
-      (q && !tile.dataset.name.includes(q)) || (miss && !!collection[tile.dataset.id])
-    );
-  });
-  refreshStats();
-}
-
-document.getElementById('checklist-filter').addEventListener('input', applyChecklistFilters);
-document.getElementById('missing-only-toggle').addEventListener('change', applyChecklistFilters);
-
-// ─────────────────────────────────────────────────────────────────
-// SET PICKER
-// ─────────────────────────────────────────────────────────────────
-
-window.openSetPicker = async function() {
-  const picker = document.getElementById('set-picker');
   picker.classList.remove('hidden');
-  const sets = await fetchAllSets();
-  pendingSetSel = new Set(trackedSets);
+  const btn = document.getElementById('action-bar-add-btn');
+  const rect = btn.getBoundingClientRect();
+  picker.style.position = 'fixed';
+  picker.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  picker.style.right = (window.innerWidth - rect.right) + 'px';
+};
 
-  // Group by series
+document.addEventListener('click', e => {
+  const picker = document.getElementById('action-list-picker');
+  if (picker && !e.target.closest('#action-list-picker') && !e.target.closest('#action-bar-add-btn')) {
+    picker.classList.add('hidden');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// SEARCH TAB — composable filter system
+// ─────────────────────────────────────────────────────────────────
+
+const FILTER_TYPES = {
+  name: { label: 'Name', buildQuery: v => `name:*${v}*` },
+  set:  { label: 'Set',  buildQuery: v => `set.id:${v}` },
+};
+
+function buildSearchQuery() {
+  return activeFilters.map(f => FILTER_TYPES[f.type].buildQuery(f.value)).join(' ');
+}
+
+function renderFilterChips() {
+  const container = document.getElementById('active-filters');
+  if (!container) return;
+  container.innerHTML = activeFilters.map((f, i) =>
+    `<span class="filter-chip">${esc(FILTER_TYPES[f.type].label)}: ${esc(f.label || f.value)}
+      <button onclick="removeFilter(${i})">×</button>
+    </span>`
+  ).join('');
+}
+
+window.removeFilter = function(index) {
+  activeFilters.splice(index, 1);
+  renderFilterChips();
+  runFilteredSearch();
+};
+
+window.addNameFilter = function() {
+  const input = document.getElementById('search-input');
+  const val = input?.value?.trim();
+  if (!val || val.length < 2) return;
+  activeFilters = activeFilters.filter(f => f.type !== 'name');
+  activeFilters.push({ type: 'name', value: val, label: val });
+  renderFilterChips();
+  runFilteredSearch();
+};
+
+window.addSetFilter = function(setId, setName) {
+  activeFilters = activeFilters.filter(f => f.type !== 'set');
+  activeFilters.push({ type: 'set', value: setId, label: setName });
+  renderFilterChips();
+  document.getElementById('set-browser').classList.add('hidden');
+  runFilteredSearch();
+};
+
+window.showSetBrowser = function() {
+  const browser = document.getElementById('set-browser');
+  browser.classList.toggle('hidden');
+  if (!browser.classList.contains('hidden') && !browser.dataset.loaded) {
+    renderSetBrowser();
+  }
+};
+
+async function renderSetBrowser() {
+  const browser = document.getElementById('set-browser');
+  const sets = await fetchAllSets();
+  browser.dataset.loaded = 'true';
+
   const byEra = {};
   for (const s of sets) (byEra[s.series] = byEra[s.series] || []).push(s);
 
-  document.getElementById('era-groups').innerHTML = Object.entries(byEra).map(([era, list]) =>
-    `<div class="era-group">
-  <h4>${esc(era)}</h4>
-  <div class="set-chips">
-    ${list.map(s => `<span class="set-chip${pendingSetSel.has(s.id) ? ' selected' : ''}"
-      onclick="toggleChip(this,'${esc(s.id)}')">${esc(s.name)}</span>`).join('')}
+  browser.innerHTML = `<input class="set-filter-input" id="set-filter-input" type="search"
+    placeholder="Filter sets…" oninput="filterSetBrowser(this.value)">` +
+    Object.entries(byEra).map(([era, list]) =>
+      `<div class="era-section" data-era="${esc(era)}">
+  <div class="era-header" onclick="this.parentElement.classList.toggle('collapsed')">
+    <span class="toggle-icon">▾</span> ${esc(era)} <span class="era-count">(${list.length})</span>
+  </div>
+  <div class="era-sets">
+    ${list.map(s => `<div class="set-row" data-set-name="${esc(s.name.toLowerCase())}">
+  <span class="set-row-name" onclick="addSetFilter('${esc(s.id)}','${esc(s.name)}')">${esc(s.name)}</span>
+  <span class="set-row-count">${s.total} cards</span>
+  ${!isGuest ? `<button class="set-select-all-btn" onclick="selectEntireSet('${esc(s.id)}')">Select All</button>` : ''}
+</div>`).join('')}
   </div>
 </div>`).join('');
+}
+
+window.filterSetBrowser = function(query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll('#set-browser .set-row').forEach(row => {
+    row.classList.toggle('hidden', q && !row.dataset.setName.includes(q));
+  });
+  document.querySelectorAll('#set-browser .era-section').forEach(section => {
+    const visible = section.querySelectorAll('.set-row:not(.hidden)').length;
+    section.classList.toggle('hidden', q && !visible);
+  });
 };
 
-window.toggleChip = function(el, setId) {
-  if (!pendingSetSel) pendingSetSel = new Set(trackedSets);
-  if (pendingSetSel.has(setId)) { pendingSetSel.delete(setId); el.classList.remove('selected'); }
-  else { pendingSetSel.add(setId); el.classList.add('selected'); }
-};
-
-document.getElementById('manage-sets-btn').addEventListener('click', openSetPicker);
-
-document.getElementById('save-sets-btn').addEventListener('click', async () => {
-  const ids = pendingSetSel ? [...pendingSetSel] : trackedSets;
-  await saveTrackedSets(ids);
-  document.getElementById('set-picker').classList.add('hidden');
-  pendingSetSel = null;
-  await renderChecklist();
-});
-
-document.getElementById('cancel-sets-btn').addEventListener('click', () => {
-  document.getElementById('set-picker').classList.add('hidden');
-  pendingSetSel = null;
-});
-
-// ─────────────────────────────────────────────────────────────────
-// SEARCH TAB
-// ─────────────────────────────────────────────────────────────────
-
-let searchTimer = null;
-let searchSeq   = 0; // guards against out-of-order responses overwriting newer results
-
-document.getElementById('pokemon-search-input').addEventListener('input', e => {
+document.getElementById('search-input')?.addEventListener('input', e => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim();
-  if (q.length < 2) { document.getElementById('search-hint').textContent = 'Type at least 2 characters'; return; }
+  if (q.length < 2) {
+    document.getElementById('search-hint').textContent = 'Type at least 2 characters';
+    return;
+  }
   document.getElementById('search-hint').textContent = 'Searching…';
-  searchTimer = setTimeout(() => runSearch(q), 400);
+  searchTimer = setTimeout(() => {
+    activeFilters = activeFilters.filter(f => f.type !== 'name');
+    activeFilters.push({ type: 'name', value: q, label: q });
+    renderFilterChips();
+    runFilteredSearch();
+  }, 400);
 });
 
-async function runSearch(query) {
+async function runFilteredSearch() {
   const seq = ++searchSeq;
   const el = document.getElementById('search-results');
+  const queryStr = buildSearchQuery();
+
+  if (!queryStr) {
+    el.innerHTML = `<div class="search-empty"><h3>Search cards</h3><p>Type a name or pick a set to search.</p></div>`;
+    document.getElementById('search-hint').textContent = '';
+    return;
+  }
+
   el.innerHTML = '<div class="loading" style="grid-column:1/-1"><div class="spinner"></div>Searching…</div>';
+
   try {
-    const cards = await searchPokemon(query);
-    if (seq !== searchSeq) return; // a newer search has since started — discard this stale result
+    let cards;
+    const setFilter = activeFilters.find(f => f.type === 'set');
+    if (setFilter && activeFilters.length === 1) {
+      cards = await fetchSetCards(setFilter.value);
+    } else {
+      cards = await searchCards(queryStr);
+    }
+    if (seq !== searchSeq) return;
+
     document.getElementById('search-hint').textContent = `${cards.length} result${cards.length !== 1 ? 's' : ''}`;
 
     if (!cards.length) {
-      el.innerHTML = `<div class="search-empty"><h3>No results for "${esc(query)}"</h3><p>Check spelling or try a different name.</p></div>`;
+      el.innerHTML = `<div class="search-empty"><h3>No results</h3><p>Try a different search.</p></div>`;
       return;
     }
 
-    const pokemonId = query.toLowerCase().replace(/\s+/g, '_');
-    const tracked   = isTracked(pokemonId);
-    const lists     = getWantlistLists();
-    const multiList = Object.keys(lists).length > 1;
-    const trackBtn  = isGuest ? '' : `<div style="grid-column:1/-1;padding:2px 0 6px">
-  <button class="track-all-btn${tracked ? ' tracked' : ''}" data-pokemon="${esc(pokemonId)}"
-    onclick="${tracked ? '' : (multiList
-      ? `showListPicker('${esc(pokemonId)}','${esc(query)}',this)`
-      : `addToWantlist('${esc(pokemonId)}','${esc(query)}')`)}">${tracked ? `✓ Tracking all ${esc(query)}` : `Track all ${esc(query)}`}</button>
-</div>`;
+    const selectable = !isGuest;
+    const selectAllBtn = selectable ? `<div style="grid-column:1/-1;padding:2px 0 6px">
+  <button class="select-all-btn" onclick="selectAllVisible()">Select all ${cards.length} cards</button>
+</div>` : '';
 
-    el.innerHTML = trackBtn + cards.map(c => cardTile(c, { showSet: true })).join('');
+    el.innerHTML = selectAllBtn + cards.map(c => cardTile(c, { showSet: true, selectable })).join('');
   } catch (e) {
     if (seq !== searchSeq) return;
     document.getElementById('search-hint').textContent = 'Search failed';
@@ -860,86 +797,144 @@ async function runSearch(query) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// WANT LISTS TAB
+// MY LISTS TAB
 // ─────────────────────────────────────────────────────────────────
 
-async function renderWantlists() {
-  const el = document.getElementById('wantlists-content');
-  const lists = getWantlistLists();
+async function renderLists() {
+  const el = document.getElementById('lists-content');
+  const lists = getLists();
   const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-  const allEntries = getAllListEntries();
 
-  if (!listArr.length && !allEntries.length) {
-    el.innerHTML = isGuest
-      ? `<div class="wantlist-empty"><p>Sign in with Google to build a want list.</p></div>`
-      : `<div class="wantlist-empty">
-      <p>No wishlists yet.</p>
-      <p>Click <strong>"New List"</strong> above to create one, then go to <strong>Search</strong> to add Pokémon.</p>
+  if (!listArr.length) {
+    el.innerHTML = `<div class="wantlist-empty">
+      <p>No lists yet.</p>
+      <p>Click <strong>"+ New List"</strong> to create one, then add cards from Search.</p>
     </div>`;
     return;
   }
 
-  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading wishlists…</div>';
-
-  let html = '';
-  for (const [listId, listInfo] of listArr) {
-    const entries = getListEntries(listId);
-    const isDefault = wantlists._defaultList === listId;
-    const readonly = isGuest;
-
-    let totalCards = 0, totalOwned = 0;
-    let pokemonHtml = '';
-    for (const entry of entries) {
-      let cards = [];
-      try { cards = await searchPokemon(entry.displayName); } catch (_) {}
-      const nOwned = cards.filter(c => collection[c.id]).length;
-      totalCards += cards.length;
-      totalOwned += nOwned;
-      const tiles = cards.map(c => cardTile(c, { showSet: true })).join('');
-      pokemonHtml += `<div class="wantlist-pokemon" data-pokemon="${esc(entry.pokemonId)}">
-  <div class="wantlist-pokemon-header">
-    <span class="wantlist-pokemon-name">${esc(entry.displayName)}</span>
-    <span class="wantlist-pokemon-progress">${nOwned}/${cards.length}</span>
-    ${readonly ? '' : `<button class="wantlist-remove" onclick="removeFromWantlist('${esc(entry.pokemonId)}')">✕</button>`}
-  </div>
-  <div class="card-grid">${tiles}</div>
-</div>`;
-    }
-
-    const menuHtml = readonly ? '' : `<button class="wishlist-menu-btn" onclick="event.stopPropagation();toggleListMenu('${esc(listId)}')" title="List options">⋯</button>
-  <div class="wishlist-menu hidden" id="menu-${esc(listId)}">
-    <button onclick="renameWishlist('${esc(listId)}')">Rename</button>
-    <button onclick="setDefaultWishlist('${esc(listId)}')">Set as default</button>
-    <button onclick="shareList('${esc(listId)}')">Share link</button>
-    <button onclick="deleteWishlist('${esc(listId)}')">Delete</button>
-  </div>`;
-
-    html += `<div class="wishlist-section" data-list-id="${esc(listId)}">
-  <div class="wishlist-header" onclick="toggleWishlistSection(this)">
-    <div class="wishlist-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="wishlist-name">${esc(listInfo.name)}</span>
-      ${isDefault ? '<span class="wishlist-default-badge">Default</span>' : ''}
-    </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <span class="wishlist-progress">${totalOwned} / ${totalCards} owned</span>
-      ${menuHtml}
-    </div>
-  </div>
-  <div class="wishlist-body">${pokemonHtml || '<p class="wishlist-empty-list">No Pokémon tracked yet. Use Search to add some.</p>'}</div>
-</div>`;
+  const itemCounts = {};
+  for (const [k, v] of Object.entries(wantlists)) {
+    if (k.startsWith('_')) continue;
+    itemCounts[v.list] = (itemCounts[v.list] || 0) + 1;
   }
 
+  let html = '<div class="list-cards-grid">';
+  if (listArr.length > 1) {
+    const totalItems = Object.values(itemCounts).reduce((a, b) => a + b, 0);
+    html += `<div class="list-card" onclick="openList('__all__')">
+  <div class="list-card-thumb" id="thumb-__all__"></div>
+  <div class="list-card-name">All</div>
+  <div class="list-card-count">${totalItems} item${totalItems !== 1 ? 's' : ''}</div>
+</div>`;
+  }
+  for (const [listId, listInfo] of listArr) {
+    const count = itemCounts[listId] || 0;
+    html += `<div class="list-card" onclick="openList('${esc(listId)}')">
+  <div class="list-card-thumb" id="thumb-${esc(listId)}"></div>
+  <div class="list-card-name">${esc(listInfo.name)}</div>
+  <div class="list-card-count">${count} item${count !== 1 ? 's' : ''}</div>
+  <button class="list-card-menu" onclick="event.stopPropagation();toggleListMenu('${esc(listId)}')" title="Options">⋯</button>
+  <div class="list-menu hidden" id="menu-${esc(listId)}">
+    <button onclick="renameList('${esc(listId)}')">Rename</button>
+    <button onclick="shareList('${esc(listId)}')">Share link</button>
+    <button onclick="deleteList('${esc(listId)}')">Delete</button>
+  </div>
+</div>`;
+  }
+  html += '</div>';
   el.innerHTML = html;
+
+  // Load thumbnails in the background
+  for (const [listId] of listArr) {
+    loadListThumb(listId);
+  }
+  if (listArr.length > 1) loadListThumb('__all__', listArr[0][0]);
 }
 
-window.toggleWishlistSection = function(header) {
-  const section = header.closest('.wishlist-section');
-  section.classList.toggle('collapsed');
+async function loadListThumb(listId, fallbackListId) {
+  const targetList = listId === '__all__' ? fallbackListId : listId;
+  const items = getListItems(targetList);
+  if (!items.length) return;
+  const first = items[0];
+  const thumbEl = document.getElementById(`thumb-${listId}`);
+  if (!thumbEl) return;
+
+  try {
+    if (first.type === 'set') {
+      const sets = await fetchAllSets();
+      const setData = sets.find(s => s.id === first.setId);
+      const logo = setData?.images?.logo || setData?.images?.symbol;
+      if (logo) {
+        thumbEl.innerHTML = `<img src="${esc(logo)}" alt="" loading="lazy" style="object-fit:contain;padding:8px">`;
+        return;
+      }
+    }
+    const cards = await fetchSetCards(first.setId);
+    const card = first.type === 'card' ? cards.find(c => c.id === first.cardId) : cards[0];
+    if (card?.images?.small) {
+      thumbEl.innerHTML = `<img src="${esc(card.images.small)}" alt="" loading="lazy">`;
+    }
+  } catch (_) {}
+}
+
+window.openList = async function(listId) {
+  const el = document.getElementById('lists-content');
+  const lists = getLists();
+  const isAll = listId === '__all__';
+  const name = isAll ? 'All Lists' : (lists[listId]?.name || 'List');
+
+  el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="renderLists()">← Back</button>
+  <span class="list-detail-name">${esc(name)}</span>
+  ${!isAll ? `<button class="add-cards-btn" onclick="addCardsToList('${esc(listId)}')">+ Add cards</button>` : ''}
+</div>
+<div class="loading"><div class="spinner"></div>Loading cards…</div>`;
+
+  let cards = [];
+  try {
+    if (isAll) {
+      const allListIds = Object.keys(lists);
+      const allCards = [];
+      for (const lid of allListIds) {
+        const c = await resolveListCards(lid);
+        allCards.push(...c);
+      }
+      const seen = new Set();
+      cards = allCards.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    } else {
+      cards = await resolveListCards(listId);
+    }
+  } catch (_) {}
+
+  const nOwned = cards.filter(c => collection[c.id]).length;
+  const tiles = cards.map(c => cardTile(c, { showSet: true })).join('');
+
+  el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="renderLists()">← Back</button>
+  <span class="list-detail-name">${esc(name)}</span>
+  <span class="list-progress" style="color:#888">${nOwned} / ${cards.length} owned</span>
+  ${!isAll ? `<button class="add-cards-btn" onclick="addCardsToList('${esc(listId)}')">+ Add cards</button>` : ''}
+</div>
+<div class="card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
+};
+
+window.promptNewList = async function() {
+  const name = prompt('New list name:');
+  if (!name) return;
+  const listId = await createList(name.trim());
+  if (listId && confirm('Add cards now?')) {
+    addCardsToList(listId);
+  }
+};
+
+window.addCardsToList = function(listId) {
+  enterSelectMode(listId);
+  location.hash = '#/search';
 };
 
 // ─────────────────────────────────────────────────────────────────
-// COMMUNITY TAB — public user profiles
+// COMMUNITY TAB
 // ─────────────────────────────────────────────────────────────────
 
 async function renderCommunity() {
@@ -955,14 +950,15 @@ async function renderCommunity() {
       const uid = d.id;
       if (currentUser && uid === currentUser.uid) return;
       const data = d.data();
-      const name = data.displayName || 'User';
+      const name = userName(data);
       const photo = data.photoURL || '';
+      const bio = data.bio || '';
       const av = photo
         ? `<img class="friend-avatar" src="${esc(photo)}" alt="${esc(name)}">`
         : `<div class="friend-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
       html += `<div class="friend-card" onclick="location.hash='#/profile/${esc(uid)}'">
   ${av}
-  <div class="friend-info"><h3>${esc(name)}</h3></div>
+  <div class="friend-info"><h3>${esc(name)}</h3>${bio ? `<p>${esc(bio)}</p>` : ''}</div>
 </div>`;
     });
 
@@ -1029,13 +1025,11 @@ function syncModalBtn(owned) {
 
 document.getElementById('modal-owned-btn').addEventListener('click', () => {
   if (!modalCardId || !currentUser) return;
-  // Find a checkbox for this card and delegate to handleToggle
   const cb = document.querySelector(`.card-tile[data-id="${CSS.escape(modalCardId)}"] input:not(:disabled)`);
   if (cb) {
     cb.checked = !cb.checked;
     window.handleToggle(cb, modalCardId);
   } else {
-    // Card is only in the modal (e.g., from search in a different view); toggle directly
     const owned = !collection[modalCardId];
     if (owned) collection[modalCardId] = true; else delete collection[modalCardId];
     syncModalBtn(owned);
@@ -1069,30 +1063,10 @@ function showToast(msg) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SHARE
+// PROFILE VIEW + ROUTING
 // ─────────────────────────────────────────────────────────────────
 
-window.shareProfile = function() {
-  const uid = currentUser?.uid;
-  if (!uid) return;
-  const url = `${location.origin}${location.pathname}#/profile/${uid}`;
-  navigator.clipboard.writeText(url).then(() => showToast('Profile link copied!'));
-};
-
-window.shareList = function(listId) {
-  const uid = currentUser?.uid;
-  if (!uid) return;
-  const url = `${location.origin}${location.pathname}#/profile/${uid}/${listId}`;
-  navigator.clipboard.writeText(url).then(() => showToast('List link copied!'));
-};
-
-// ─────────────────────────────────────────────────────────────────
-// PROFILE VIEW + HASH ROUTING
-// ─────────────────────────────────────────────────────────────────
-
-let activeRoute = null;
-
-const VALID_TABS = ['checklist', 'search', 'wantlists', 'community'];
+const VALID_TABS = ['search', 'lists', 'community'];
 
 function parseRoute() {
   const hash = location.hash.slice(1);
@@ -1143,6 +1117,8 @@ async function renderProfile(uid, filterListId) {
   headerEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   listsEl.innerHTML = '';
 
+  const isOwn = currentUser && uid === currentUser.uid;
+
   try {
     const [uSnap, cSnap, wSnap] = await Promise.all([
       getDoc(doc(db, 'users', uid)),
@@ -1159,26 +1135,45 @@ async function renderProfile(uid, filterListId) {
     const coll = { ...cSnap.data() }; delete coll.updatedAt;
     const wlData = wSnap.data() || {};
 
-    const name = userData.displayName || 'User';
+    const name = userName(userData);
     const photo = userData.photoURL || '';
-    const setsCount = (userData.trackedSets || []).length;
+    const bio = userData.bio || '';
     const cardsOwned = Object.keys(coll).length;
 
-    headerEl.innerHTML = `
-      ${photo
-        ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-        : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
-      <div class="profile-name">${esc(name)}</div>
-      <div class="profile-stats-row">
-        <span>${setsCount} set${setsCount !== 1 ? 's' : ''} tracked</span>
-        <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
-      </div>`;
+    if (isOwn) {
+      headerEl.innerHTML = `
+        ${photo
+          ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
+          : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
+        <div style="margin-top:10px">
+          <label class="profile-edit-label">Display Name</label>
+          <input class="profile-edit-input" id="profile-name-input" value="${esc(userData.customName || '')}" placeholder="${esc(userData.displayName || 'Your name')}">
+        </div>
+        <div>
+          <label class="profile-edit-label">Bio</label>
+          <input class="profile-edit-input" id="profile-bio-input" value="${esc(bio)}" placeholder="Tell people about your collection…">
+        </div>
+        <button class="profile-save-btn" onclick="saveProfile()">Save</button>
+        <div class="profile-stats-row">
+          <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
+        </div>`;
+    } else {
+      headerEl.innerHTML = `
+        ${photo
+          ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
+          : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
+        <div class="profile-name">${esc(name)}</div>
+        ${bio ? `<div class="profile-bio">${esc(bio)}</div>` : ''}
+        <div class="profile-stats-row">
+          <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
+        </div>`;
+    }
 
     const lists = wlData._lists || {};
     const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
 
     if (!listArr.length) {
-      listsEl.innerHTML = '<div class="wantlist-empty"><p>No wishlists yet.</p></div>';
+      listsEl.innerHTML = '<div class="wantlist-empty"><p>No lists yet.</p></div>';
       return;
     }
 
@@ -1190,41 +1185,43 @@ async function renderProfile(uid, filterListId) {
 
     let html = '';
     for (const [listId, listInfo] of filtered) {
-      const entries = Object.entries(wlData)
-        .filter(([k, v]) => !k.startsWith('_') && v.list === listId)
-        .map(([pid, info]) => ({ pokemonId: pid, ...info }));
+      const items = Object.entries(wlData)
+        .filter(([k, v]) => !k.startsWith('_') && v.list === listId);
 
-      let totalCards = 0, totalOwned = 0, pokemonHtml = '';
-      for (const entry of entries) {
-        let cards = [];
-        try { cards = await searchPokemon(entry.displayName); } catch (_) {}
-        const nOwned = cards.filter(c => coll[c.id]).length;
-        totalCards += cards.length;
-        totalOwned += nOwned;
-        pokemonHtml += `<div class="wantlist-pokemon">
-  <div class="wantlist-pokemon-header">
-    <span class="wantlist-pokemon-name">${esc(entry.displayName)}</span>
-    <span class="wantlist-pokemon-progress">${nOwned}/${cards.length}</span>
-  </div>
-  <div class="card-grid">${cards.map(c => cardTile(c, { readonly: true, showSet: true })).join('')}</div>
-</div>`;
+      let allCards = [];
+      for (const [, item] of items) {
+        if (item.type === 'set') {
+          const cards = await fetchSetCards(item.setId);
+          allCards.push(...cards);
+        } else if (item.type === 'card') {
+          const cards = await fetchSetCards(item.setId);
+          const match = cards.find(c => c.id === item.cardId);
+          if (match) allCards.push(match);
+        }
       }
+      const seen = new Set();
+      allCards = allCards.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
 
-      html += `<div class="wishlist-section" data-list-id="${esc(listId)}">
-  <div class="wishlist-header" onclick="toggleWishlistSection(this)">
-    <div class="wishlist-header-left">
+      const nOwned = allCards.filter(c => coll[c.id]).length;
+      const tiles = allCards.map(c => cardTile(c, { readonly: true, showSet: true, collectionOverride: coll })).join('');
+
+      html += `<div class="list-section">
+  <div class="list-header" onclick="this.parentElement.classList.toggle('collapsed')">
+    <div class="list-header-left">
       <span class="toggle-icon">▾</span>
-      <span class="wishlist-name">${esc(listInfo.name)}</span>
+      <span class="list-name">${esc(listInfo.name)}</span>
     </div>
-    <span class="wishlist-progress">${totalOwned} / ${totalCards} owned</span>
+    <span class="list-progress">${nOwned} / ${allCards.length} owned</span>
   </div>
-  <div class="wishlist-body">${pokemonHtml || '<p class="wishlist-empty-list">Empty list.</p>'}</div>
+  <div class="list-body">
+    <div class="card-grid">${tiles || '<p class="list-empty">Empty list.</p>'}</div>
+  </div>
 </div>`;
     }
 
     if (filterListId) {
       html = `<div style="padding:8px 16px">
-  <a href="#/profile/${esc(uid)}" style="font-size:.78rem;color:var(--dark)">← See all wishlists</a>
+  <a href="#/profile/${esc(uid)}" style="font-size:.78rem;color:var(--dark)">← See all lists</a>
 </div>` + html;
     }
 
@@ -1234,10 +1231,16 @@ async function renderProfile(uid, filterListId) {
   }
 }
 
-document.getElementById('back-from-profile').addEventListener('click', () => {
-  location.hash = '';
-});
+window.saveProfile = async function() {
+  if (!currentUser) return;
+  const customName = document.getElementById('profile-name-input')?.value?.trim() || '';
+  const bio = document.getElementById('profile-bio-input')?.value?.trim() || '';
+  await setDoc(doc(db, 'users', currentUser.uid), { customName, bio }, { merge: true });
+  document.getElementById('user-name').textContent = customName || currentUser.displayName || currentUser.email;
+  showToast('Profile saved');
+};
 
+document.getElementById('back-from-profile').addEventListener('click', () => { location.hash = ''; });
 document.getElementById('copy-profile-link').addEventListener('click', () => {
   navigator.clipboard.writeText(location.href).then(() => showToast('Link copied!'));
 });
@@ -1249,9 +1252,7 @@ window.addEventListener('hashchange', handleRoute);
 // ─────────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.tab-btn').forEach(btn =>
-  btn.addEventListener('click', () => {
-    location.hash = `#/${btn.dataset.tab}`;
-  })
+  btn.addEventListener('click', () => { location.hash = `#/${btn.dataset.tab}`; })
 );
 
 window.switchTab = async function switchTab(tab, fromRouter) {
@@ -1261,36 +1262,29 @@ window.switchTab = async function switchTab(tab, fromRouter) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
   document.getElementById(`tab-${tab}`).classList.remove('hidden');
   document.querySelector('.tab-bar')?.classList.remove('hidden');
-  if (tab === 'wantlists') await renderWantlists();
+  if (tab === 'lists') await renderLists();
   if (tab === 'community') await renderCommunity();
-}
+  if (tab === 'search' && addingToList) {
+    const lists = getLists();
+    const name = lists[addingToList]?.name || 'list';
+    showToast(`Adding to: ${name}. Select cards, then click "Add to list".`);
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────
-// IMPORT — owned_cards.json from export_owned.py
+// IMPORT — owned_cards.json (on profile page)
 // ─────────────────────────────────────────────────────────────────
 
-document.getElementById('import-trigger').addEventListener('click', () => {
-  document.getElementById('import-file-input').click();
-});
-
-document.getElementById('import-file-input').addEventListener('change', async e => {
+document.getElementById('import-file-input')?.addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file || !currentUser) return;
   try {
     const data = JSON.parse(await file.text());
     if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Expected a JSON object');
     await setDoc(doc(db, 'collections', currentUser.uid), { ...data, updatedAt: serverTimestamp() }, { merge: true });
-    document.getElementById('import-banner').classList.add('hidden');
-    localStorage.setItem('import_dismissed', '1');
-    alert(`Imported ${Object.keys(data).length} owned cards. Your collection is now synced to your account.`);
-    await renderChecklist();
+    alert(`Imported ${Object.keys(data).length} owned cards.`);
   } catch (err) {
     alert('Import failed: ' + err.message);
   }
   e.target.value = '';
-});
-
-document.getElementById('import-dismiss').addEventListener('click', () => {
-  document.getElementById('import-banner').classList.add('hidden');
-  localStorage.setItem('import_dismissed', '1');
 });

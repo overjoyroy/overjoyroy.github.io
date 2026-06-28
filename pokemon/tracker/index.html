@@ -6,15 +6,15 @@
 <title>Porydex</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--dark:#1a1a2e;--green:#2ecc71;--bg:#f0f0f5;--shadow:0 2px 8px rgba(0,0,0,.12)}
+:root{--dark:#1a1a2e;--green:#2ecc71;--blue:#3498db;--bg:#f0f0f5;--shadow:0 2px 8px rgba(0,0,0,.12)}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#222;min-height:100vh}
 
 /* ── Top bar ── */
 .topbar{background:var(--dark);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .topbar-brand{display:flex;align-items:center;gap:9px}
-.topbar-card-icon{height:36px;width:auto;border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.4);flex-shrink:0}
 .topbar-back-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:.78rem;font-weight:600;white-space:nowrap;transition:color .15s}
 .topbar-back-link:hover{color:#fff}
+.topbar-card-icon{height:36px;width:auto;border-radius:3px;box-shadow:0 1px 4px rgba(0,0,0,.4);flex-shrink:0}
 .topbar-title-link{font-size:.95rem;font-weight:700;white-space:nowrap;color:#fff;text-decoration:none;transition:opacity .15s}
 .topbar-title-link:hover{opacity:.8}
 .tab-bar{display:flex;gap:3px;flex:1;justify-content:center;flex-wrap:wrap}
@@ -29,43 +29,49 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .signin-topbar-btn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:4px 12px;border-radius:12px;font-size:.74rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
 .signin-topbar-btn:hover{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.5)}
 
-/* ── Sub-bar ── */
-.subbar{background:#fff;padding:9px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #e5e5e5;position:sticky;top:52px;z-index:90;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-.subbar-search{flex:1;min-width:160px;padding:7px 14px;border-radius:18px;border:1px solid #ddd;font-size:.85rem;outline:none}
-.subbar-search:focus{border-color:#999}
-.subbar-stats{font-size:.74rem;color:#888;white-space:nowrap}
-.filter-toggle{font-size:.74rem;display:flex;align-items:center;gap:5px;cursor:pointer;color:#555;white-space:nowrap;user-select:none}
-.manage-sets-btn{background:var(--dark);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
-.manage-sets-btn:hover{background:#2a2a4e}
+/* ── Search ── */
+.search-panel{padding:14px 16px}
+.search-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.search-input{flex:1;min-width:200px;padding:9px 16px;border-radius:18px;border:1px solid #ddd;font-size:.9rem;outline:none}
+.search-input:focus{border-color:#999}
+.search-hint{font-size:.76rem;color:#aaa;white-space:nowrap}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;min-height:24px}
+.filter-chip{display:inline-flex;align-items:center;gap:4px;background:var(--dark);color:#fff;padding:3px 10px;border-radius:12px;font-size:.72rem;font-weight:600}
+.filter-chip button{background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:.8rem;padding:0 2px}
+.filter-chip button:hover{color:#fff}
+.filter-actions{display:flex;gap:6px;flex-wrap:wrap}
+.filter-btn{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s}
+.filter-btn:hover{background:#e0e0e5}
+.search-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px}
+.search-empty{text-align:center;padding:60px 20px;color:#bbb;grid-column:1/-1}
+.search-empty h3{margin-bottom:8px;font-size:1rem}
+.select-all-btn{width:100%;background:var(--blue);color:#fff;border:none;padding:7px;border-radius:7px;font-size:.72rem;cursor:pointer}
+.select-all-btn:hover{background:#2980b9}
 
-/* ── Set picker ── */
-#set-picker{background:#fff;border-bottom:2px solid #e0e0e0;padding:16px;max-height:55vh;overflow-y:auto}
-#set-picker h3{font-size:.85rem;color:#555;margin-bottom:12px}
-.era-group{margin-bottom:13px}
-.era-group h4{font-size:.7rem;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
-.set-chips{display:flex;flex-wrap:wrap;gap:5px}
-.set-chip{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s;white-space:nowrap;user-select:none}
-.set-chip.selected{background:var(--dark);color:#fff;border-color:var(--dark)}
-.set-picker-actions{display:flex;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #eee}
-#save-sets-btn{background:var(--dark);color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:.82rem;cursor:pointer}
-#cancel-sets-btn{background:transparent;color:#888;border:1px solid #ddd;padding:8px 18px;border-radius:8px;font-size:.82rem;cursor:pointer}
-
-/* ── Set sections ── */
-.set-section{margin:16px}
-.set-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s}
-.set-header:hover{background:#2a2a4e}
-.set-header-left{display:flex;align-items:center;gap:9px}
-.toggle-icon{font-size:1rem;transition:transform .2s;display:inline-block}
-.set-section.collapsed .toggle-icon{transform:rotate(-90deg)}
-.set-name{font-weight:700;font-size:.9rem}
-.set-stats{font-size:.75rem;opacity:.75}
-.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px;padding:12px 0}
-.set-section.collapsed .card-grid,.wantlist-item.collapsed .card-grid{display:none}
+/* ── Set browser ── */
+#set-browser{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px;margin-bottom:14px;max-height:50vh;overflow-y:auto}
+.set-filter-input{width:100%;padding:7px 12px;border-radius:12px;border:1px solid #ddd;font-size:.82rem;outline:none;margin-bottom:10px}
+.set-filter-input:focus{border-color:#999}
+.era-section{margin-bottom:8px}
+.era-section.collapsed .era-sets{display:none}
+.era-section.collapsed .toggle-icon{transform:rotate(-90deg)}
+.era-section.hidden{display:none}
+.era-header{font-size:.78rem;font-weight:700;color:var(--dark);cursor:pointer;padding:5px 0;user-select:none;display:flex;align-items:center;gap:6px}
+.era-count{font-weight:400;color:#aaa}
+.era-sets{padding-left:8px}
+.set-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.78rem}
+.set-row.hidden{display:none}
+.set-row-name{color:var(--dark);cursor:pointer;font-weight:600;flex:1}
+.set-row-name:hover{text-decoration:underline}
+.set-row-count{color:#aaa;font-size:.72rem}
+.set-select-all-btn{background:var(--blue);color:#fff;border:none;padding:2px 8px;border-radius:8px;font-size:.65rem;cursor:pointer;white-space:nowrap}
+.set-select-all-btn:hover{background:#2980b9}
 
 /* ── Card tiles ── */
-.card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s}
+.card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s,outline-color .15s}
 .card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.15)}
 .card-tile.owned{opacity:.5;outline:2px solid var(--green)}
+.card-tile.selected{outline:2px solid var(--blue);opacity:1}
 .card-tile.hidden{display:none!important}
 .card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
 .card-img{width:104px;height:auto;display:block;border-radius:6px}
@@ -76,77 +82,98 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-num{font-size:.64rem;color:#bbb}
 .card-price{font-size:.67rem;color:#2d8a4e;font-weight:700}
 .card-set-badge{font-size:.58rem;color:#ccc;line-height:1.3}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px;padding:12px 0}
 
 /* ── Owned checkbox ── */
 .owned-check{position:absolute;top:6px;right:6px;cursor:pointer;z-index:2}
 .owned-check input{display:none}
 .checkmark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid #ddd;background:#fff;font-size:.68rem;color:transparent;transition:all .15s}
 .owned-check input:checked+.checkmark{background:var(--green);border-color:var(--green);color:#fff}
-.owned-check.readonly{pointer-events:none}
 
-/* ── Read-only banner ── */
-.readonly-banner{background:#e8f5e9;color:#2e7d32;padding:7px 16px;font-size:.75rem;text-align:center;border-bottom:1px solid #c8e6c9}
-
-/* ── Search tab ── */
-.search-panel{padding:14px 16px}
-.search-sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.pokemon-search-input{flex:1;min-width:200px;padding:9px 16px;border-radius:18px;border:1px solid #ddd;font-size:.9rem;outline:none}
-.pokemon-search-input:focus{border-color:#999}
-.search-hint{font-size:.76rem;color:#aaa;white-space:nowrap}
-.search-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px}
-.track-all-btn{width:100%;background:var(--dark);color:#fff;border:none;padding:7px;border-radius:7px;font-size:.72rem;cursor:pointer;margin-top:4px}
-.track-all-btn:hover{background:#2a2a4e}
-.track-all-btn.tracked{background:#2d8a4e}
-.search-empty{text-align:center;padding:60px 20px;color:#bbb;grid-column:1/-1}
-.search-empty h3{margin-bottom:8px;font-size:1rem}
-
-/* ── Wishlists tab ── */
-.wantlists-header{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.wantlists-header h2{font-size:.95rem;font-weight:700}
-.wantlists-header-actions{display:flex;gap:6px;align-items:center}
-.wantlist-empty{text-align:center;padding:50px 20px;color:#aaa}
-.wantlist-empty strong{color:#888}
-.wishlist-section{margin:0 16px 14px}
-.wishlist-section.collapsed .wishlist-body{display:none}
-.wishlist-section.collapsed .toggle-icon{transform:rotate(-90deg)}
-.wishlist-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s;position:relative}
-.wishlist-header:hover{background:#2a2a4e}
-.wishlist-header-left{display:flex;align-items:center;gap:9px}
-.wishlist-name{font-weight:700;font-size:.9rem}
-.wishlist-default-badge{background:var(--green);color:#fff;font-size:.58rem;padding:2px 6px;border-radius:8px;font-weight:600}
-.wishlist-progress{font-size:.75rem;opacity:.75}
-.wishlist-menu-btn{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:3px 9px;border-radius:10px;font-size:.8rem;cursor:pointer;line-height:1}
-.wishlist-menu-btn:hover{background:rgba(255,255,255,.22)}
-.wishlist-menu{position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:var(--shadow);padding:4px 0;z-index:50;min-width:150px}
-.wishlist-menu button{display:block;width:100%;text-align:left;padding:7px 14px;border:none;background:none;font-size:.78rem;cursor:pointer;color:#333}
-.wishlist-menu button:hover{background:#f5f5f5}
-.wishlist-body{padding:8px 0}
-.wishlist-empty-list{color:#aaa;font-size:.8rem;padding:16px;text-align:center}
-.wantlist-pokemon{margin-bottom:10px}
-.wantlist-pokemon-header{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:.82rem;font-weight:600;color:#555}
-.wantlist-pokemon-progress{font-size:.72rem;color:#aaa;font-weight:400}
-.wantlist-remove{background:#f0f0f5;border:none;color:#999;padding:2px 7px;border-radius:8px;font-size:.7rem;cursor:pointer;margin-left:auto}
-.wantlist-remove:hover{background:#e0e0e5;color:#666}
+/* ── My Lists tab ── */
+.lists-header{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.lists-header h2{font-size:.95rem;font-weight:700}
+.lists-header-actions{display:flex;gap:6px;align-items:center}
 .new-list-btn{background:var(--green);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
 .new-list-btn:hover{background:#27ae60}
+.share-profile-btn{background:var(--dark);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
+.share-profile-btn:hover{background:#2a2a4e}
+.wantlist-empty{text-align:center;padding:50px 20px;color:#aaa}
+.wantlist-empty strong{color:#888}
+.list-section{margin:0 16px 14px}
+.list-section.collapsed .list-body{display:none}
+.list-section.collapsed .toggle-icon{transform:rotate(-90deg)}
+.list-header{background:var(--dark);color:#fff;padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .15s;position:relative}
+.list-header:hover{background:#2a2a4e}
+.list-header-left{display:flex;align-items:center;gap:9px}
+.toggle-icon{font-size:1rem;transition:transform .2s;display:inline-block}
+.list-name{font-weight:700;font-size:.9rem}
+.list-progress{font-size:.75rem;opacity:.75}
+.list-menu-btn{background:rgba(255,255,255,.12);border:none;color:rgba(255,255,255,.8);padding:3px 9px;border-radius:10px;font-size:.8rem;cursor:pointer;line-height:1}
+.list-menu-btn:hover{background:rgba(255,255,255,.22)}
+.list-menu{position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:var(--shadow);padding:4px 0;z-index:50;min-width:150px}
+.list-menu button{display:block;width:100%;text-align:left;padding:7px 14px;border:none;background:none;font-size:.78rem;cursor:pointer;color:#333}
+.list-menu button:hover{background:#f5f5f5}
+.list-body{padding:8px 0}
+.list-empty{color:#aaa;font-size:.8rem;padding:16px;text-align:center}
+.list-empty a{color:var(--dark);font-weight:600}
+.add-cards-btn{background:var(--blue);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.72rem;cursor:pointer}
+.add-cards-btn:hover{background:#2980b9}
+.list-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;padding:16px}
+.list-card{background:#fff;border-radius:12px;padding:20px 16px;text-align:center;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative}
+.list-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.15);transform:translateY(-2px)}
+.list-card-thumb{width:80px;height:112px;margin:0 auto 8px;border-radius:6px;overflow:hidden;background:#f0f0f5;display:flex;align-items:center;justify-content:center}
+.list-card-thumb img{width:100%;height:100%;object-fit:cover;border-radius:6px}
+.list-card-name{font-size:.88rem;font-weight:700;color:var(--dark);margin-bottom:4px}
+.list-card-count{font-size:.72rem;color:#aaa}
+.list-card-menu{position:absolute;top:8px;right:8px;background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 5px;border-radius:6px}
+.list-card-menu:hover{background:#f0f0f5;color:#888}
+.list-detail-header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}
+.list-detail-name{font-size:.95rem;font-weight:700;flex:1}
 
-/* ── List picker dropdown (search) ── */
-.list-picker{position:absolute;top:100%;left:0;right:0;margin-top:4px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:var(--shadow);z-index:50;max-height:200px;overflow-y:auto}
-.list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
-.list-picker-item:hover{background:#f0f0f5}
-.list-picker-create{border-top:1px solid #eee;color:var(--dark);font-weight:600}
+/* ── Floating action bar ── */
+#action-bar{position:fixed;bottom:0;left:0;right:0;background:var(--dark);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:150;box-shadow:0 -2px 12px rgba(0,0,0,.3)}
+#action-bar.hidden{display:none}
+#action-bar-count{font-size:.82rem;font-weight:600}
+.action-bar-btns{display:flex;gap:8px}
+.action-bar-add{background:var(--green);color:#fff;border:none;padding:7px 16px;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer;position:relative}
+.action-bar-add:hover{background:#27ae60}
+.action-bar-cancel{background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.2);padding:7px 14px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.action-bar-cancel:hover{color:#fff;border-color:rgba(255,255,255,.5)}
+.action-list-picker{position:absolute;bottom:100%;right:0;margin-bottom:6px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:var(--shadow);min-width:180px;max-height:200px;overflow-y:auto}
+.action-list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
+.action-list-picker-item:hover{background:#f0f0f5}
+.action-list-picker-create{border-top:1px solid #eee;color:var(--dark);font-weight:600}
+
+/* ── Community tab ── */
+.community-panel{padding:16px}
+.community-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.community-header h2{font-size:.95rem;font-weight:700}
+.public-profile-toggle{font-size:.76rem;color:#555;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.public-profile-toggle input{accent-color:var(--green)}
+.friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
+.friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
+.friend-no-photo{width:38px;height:38px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.friend-info h3{font-size:.88rem;font-weight:600}
+.friend-info p{font-size:.74rem;color:#999}
 
 /* ── Profile view ── */
-#profile-view{padding:0}
 .profile-back-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;justify-content:space-between}
+.back-btn{background:transparent;border:1px solid #ddd;color:#555;padding:4px 12px;border-radius:12px;font-size:.75rem;cursor:pointer}
+.back-btn:hover{background:#f5f5f5}
 .profile-header{padding:24px 16px;text-align:center;background:#fff;border-bottom:1px solid #eee}
 .profile-avatar{width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block}
 .profile-no-photo{width:72px;height:72px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.5rem;margin:0 auto 10px}
 .profile-name{font-size:1.2rem;font-weight:700;margin-bottom:4px}
+.profile-bio{font-size:.82rem;color:#888;font-style:italic;margin-bottom:8px}
 .profile-stats-row{display:flex;gap:20px;justify-content:center;font-size:.78rem;color:#aaa;margin-top:6px}
-.profile-wishlists-header{padding:16px 16px 8px;font-size:.88rem;font-weight:700;color:#555}
-.share-profile-btn{background:var(--dark);color:#fff;border:none;padding:5px 13px;border-radius:12px;font-size:.74rem;cursor:pointer;white-space:nowrap}
-.share-profile-btn:hover{background:#2a2a4e}
+.profile-edit-label{display:block;font-size:.7rem;color:#aaa;margin:8px 0 3px;text-align:left}
+.profile-edit-input{width:100%;max-width:300px;padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:.82rem;outline:none}
+.profile-edit-input:focus{border-color:#999}
+.profile-save-btn{margin-top:10px;background:var(--green);color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.profile-save-btn:hover{background:#27ae60}
+.profile-lists-header{padding:16px 16px 8px;font-size:.88rem;font-weight:700;color:#555}
 
 /* ── Welcome page ── */
 #welcome-view{max-width:600px;margin:0 auto;padding:32px 20px 48px;text-align:center}
@@ -163,33 +190,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .welcome-feature h4{font-size:.82rem;font-weight:700;color:var(--dark);margin-bottom:3px}
 .welcome-feature p{font-size:.72rem;color:#999;line-height:1.4}
 .welcome-signin{margin-top:8px;font-size:.82rem;color:#aaa}
-
-/* ── Toast notification ── */
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:.82rem;z-index:300;animation:fadeInOut 2s forwards;pointer-events:none}
-@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1}100%{opacity:0}}
-
-/* ── Community tab ── */
-.community-panel{padding:16px}
-.community-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
-.community-header h2{font-size:.95rem;font-weight:700}
-.public-profile-toggle{font-size:.76rem;color:#555;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
-.public-profile-toggle input{accent-color:var(--green)}
-.friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
-.friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
-.friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
-.friend-no-photo{width:38px;height:38px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
-.friend-info h3{font-size:.88rem;font-weight:600}
-.friend-info p{font-size:.74rem;color:#999}
-.back-bar{padding:10px 16px;background:#fff;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px}
-.back-btn{background:transparent;border:1px solid #ddd;color:#555;padding:4px 12px;border-radius:12px;font-size:.75rem;cursor:pointer}
-.back-btn:hover{background:#f5f5f5}
-
-/* ── Import banner ── */
-#import-banner{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;margin:12px 16px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-#import-banner p{font-size:.76rem;color:#666;flex:1}
-#import-file-input{display:none}
-.import-btn{background:#f9a825;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.76rem;cursor:pointer;white-space:nowrap}
-.import-dismiss{background:transparent;border:none;color:#bbb;font-size:.8rem;cursor:pointer;padding:2px 6px;line-height:1}
 
 /* ── Modal ── */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:16px}
@@ -216,6 +216,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .btn-owned{background:#eee;color:#333}
 .btn-owned.active{background:var(--green);color:#fff}
 
+/* ── Toast ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--dark);color:#fff;padding:10px 20px;border-radius:20px;font-size:.82rem;z-index:300;animation:fadeInOut 2s forwards;pointer-events:none}
+@keyframes fadeInOut{0%{opacity:0;transform:translateX(-50%) translateY(10px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1}100%{opacity:0}}
+
 /* ── Loading / util ── */
 .loading{text-align:center;padding:60px 20px;color:#bbb;font-size:.875rem}
 .spinner{width:28px;height:28px;border:3px solid #e5e5e5;border-top-color:var(--dark);border-radius:50%;animation:spin .65s linear infinite;margin:0 auto 14px}
@@ -226,6 +230,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   .topbar{padding:8px 12px}
   .tab-btn{padding:4px 9px;font-size:.72rem}
   .modal-img{width:120px}
+  .welcome-features{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -242,9 +247,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
     <div class="tab-bar">
       <button class="tab-btn" data-tab="home">Home</button>
-      <button class="tab-btn active" data-tab="checklist">My Checklist</button>
       <button class="tab-btn" data-tab="search">Search</button>
-      <button class="tab-btn" data-tab="wantlists">Wishlist</button>
+      <button class="tab-btn" data-tab="lists">My Lists</button>
       <button class="tab-btn" data-tab="community">Community</button>
     </div>
     <div class="auth-info">
@@ -255,64 +259,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   </div>
 
-  <!-- CHECKLIST -->
-  <div id="tab-checklist" class="tab-panel">
-    <div class="subbar">
-      <input class="subbar-search" id="checklist-filter" type="search" placeholder="Filter cards by name…">
-      <span class="subbar-stats" id="checklist-stats"></span>
-      <label class="filter-toggle"><input type="checkbox" id="missing-only-toggle"> Missing only</label>
-      <button class="manage-sets-btn" id="toggle-all-btn" onclick="toggleAllSections()">Expand all</button>
-    </div>
-    <div id="import-banner" class="hidden">
-      <p>Have <code>owned_cards.json</code> from the migration script? Import it once to seed your collection.</p>
-      <input type="file" id="import-file-input" accept=".json">
-      <button class="import-btn" id="import-trigger">Import JSON</button>
-      <button class="import-dismiss" id="import-dismiss">✕</button>
-    </div>
-    <div id="checklist-content">
-      <div class="loading"><div class="spinner"></div>Loading your collection…</div>
-    </div>
-  </div>
-
   <!-- SEARCH -->
   <div id="tab-search" class="tab-panel hidden">
     <div class="search-panel">
-      <div class="search-sub">
-        <input class="pokemon-search-input" id="pokemon-search-input" type="search"
+      <div class="search-bar">
+        <input class="search-input" id="search-input" type="search"
                placeholder="Search by Pokémon name (e.g. Dragonite)…" autocomplete="off">
         <span class="search-hint" id="search-hint">Search across all TCG sets</span>
       </div>
+      <div class="filter-bar">
+        <div id="active-filters"></div>
+        <div class="filter-actions">
+          <button class="filter-btn" onclick="showSetBrowser()">Browse Sets</button>
+        </div>
+      </div>
+      <div id="set-browser" class="hidden"></div>
       <div class="search-results-grid" id="search-results">
         <div class="search-empty">
-          <h3>Search all Pokémon TCG cards</h3>
-          <p>Find every printing of any card across all sets.</p>
+          <h3>Search cards</h3>
+          <p>Type a name or browse sets to find cards.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- WISHLIST -->
-  <div id="tab-wantlists" class="tab-panel hidden">
-    <div class="wantlists-header">
-      <h2>My Wishlists</h2>
-      <div class="wantlists-header-actions">
-        <button class="new-list-btn" id="new-list-btn" onclick="promptNewList()">+ New List</button>
-        <button class="manage-sets-btn" id="manage-sets-btn">Manage Sets</button>
-        <button class="share-profile-btn" id="share-my-profile-btn" onclick="shareProfile()">Share Profile</button>
+  <!-- MY LISTS -->
+  <div id="tab-lists" class="tab-panel hidden">
+    <div class="lists-header">
+      <h2>My Lists</h2>
+      <div class="lists-header-actions">
+        <button class="new-list-btn" onclick="promptNewList()">+ New List</button>
+        <button class="share-profile-btn" onclick="shareProfile()">Share Profile</button>
       </div>
     </div>
-    <div id="set-picker" class="hidden">
-      <h3>Select the sets you want to track. Your selections sync to your account.</h3>
-      <div id="era-groups"></div>
-      <div class="set-picker-actions">
-        <button id="save-sets-btn">Save</button>
-        <button id="cancel-sets-btn">Cancel</button>
-      </div>
-    </div>
-    <div id="wantlists-content">
+    <div id="lists-content">
       <div class="wantlist-empty">
-        <p>No wishlists yet.</p>
-        <p>Click <strong>"New List"</strong> to create one, then use <strong>Search</strong> to add Pokémon.</p>
+        <p>No lists yet.</p>
+        <p>Click <strong>"+ New List"</strong> to create one.</p>
       </div>
     </div>
   </div>
@@ -333,7 +316,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   </div>
 
-  <!-- WELCOME (guest landing page) -->
+  <!-- WELCOME -->
   <div id="welcome-view" class="tab-panel hidden">
     <div id="welcome-view-inner">
       <div class="welcome-card-wrap">
@@ -360,22 +343,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         </a>
       </div>
 
-      <p class="welcome-signin">Sign in to track your own collection and build wishlists.</p>
+      <p class="welcome-signin">Sign in to track your own collection and build lists.</p>
     </div>
   </div>
 
-  <!-- PROFILE VIEW (shown via hash route) -->
+  <!-- PROFILE VIEW -->
   <div id="profile-view" class="tab-panel hidden">
     <div class="profile-back-bar">
       <button class="back-btn" id="back-from-profile">← Back to Porydex</button>
       <button class="share-profile-btn" id="copy-profile-link">Copy Link</button>
     </div>
     <div class="profile-header" id="profile-header"></div>
-    <div class="profile-wishlists-header">Wishlists</div>
+    <div class="profile-lists-header">Lists</div>
     <div id="profile-wishlists"></div>
   </div>
 
 </div>
+
+<!-- Floating action bar for multi-select -->
+<div id="action-bar" class="hidden">
+  <span id="action-bar-count">0 selected</span>
+  <div class="action-bar-btns">
+    <button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Add to list ▾</button>
+    <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>
+  </div>
+</div>
+
+<!-- Action bar list picker -->
+<div id="action-list-picker" class="action-list-picker hidden"></div>
 
 <!-- Toast container -->
 <div id="toast-container"></div>
@@ -400,10 +395,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
 </div>
 
+<!-- Hidden import input (used from profile page) -->
+<input type="file" id="import-file-input" accept=".json" style="display:none">
+
 <script src="./firebase-config.js"></script>
 <script type="module" src="./app.js"></script>
 <script>
-// Safety net: if app.js fails to load or auth hangs, show the app after 3s
 setTimeout(function() {
   var app = document.getElementById('app');
   if (app && app.classList.contains('hidden')) {
