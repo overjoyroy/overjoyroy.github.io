@@ -1074,6 +1074,7 @@ window.openCollection = async function() {
   <button class="back-btn" onclick="renderLists()">← Back</button>
   <span class="list-detail-name">My Collection</span>
   <span class="list-progress" style="color:#888">${ownedIds.length} card${ownedIds.length !== 1 ? 's' : ''}</span>
+  <button class="list-action-btn" onclick="viewAllMissing()">View All Missing</button>
 </div>
 <div class="card-filter-bar">
   <button class="card-filter-btn active" onclick="setCollectionFilter('owned', this)">Owned Only</button>
@@ -1118,6 +1119,73 @@ window.setCollectionFilter = function(mode, btn) {
       toggleCollectionSet(section.querySelector('.list-header'), setId);
     }
   });
+};
+
+window.viewAllMissing = async function() {
+  const el = document.getElementById('lists-content');
+  const ownedIds = Object.keys(collection);
+
+  // Find all sets the user owns cards from
+  const bySet = {};
+  for (const cardId of ownedIds) {
+    const parts = cardId.match(/^(.+)-\d+$/);
+    const setId = parts ? parts[1] : cardId;
+    bySet[setId] = true;
+  }
+  const setIds = Object.keys(bySet);
+
+  if (!setIds.length) {
+    el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="openCollection()">← Back to Collection</button>
+  <span class="list-detail-name">All Missing Cards</span>
+</div>
+<div class="wantlist-empty"><p>No sets in your collection yet.</p></div>`;
+    return;
+  }
+
+  const sets = await fetchAllSets();
+  const setMeta = Object.fromEntries(sets.map(s => [s.id, s]));
+  const sortedSetIds = setIds.sort((a, b) =>
+    (setMeta[a]?.releaseDate || '').localeCompare(setMeta[b]?.releaseDate || '')
+  );
+
+  el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="openCollection()">← Back to Collection</button>
+  <span class="list-detail-name">All Missing Cards</span>
+</div>
+<div class="loading"><div class="spinner"></div>Loading missing cards across ${setIds.length} sets…</div>`;
+
+  let totalMissing = 0;
+  let html = `<div class="list-detail-header">
+  <button class="back-btn" onclick="openCollection()">← Back to Collection</button>
+  <span class="list-detail-name">All Missing Cards</span>
+  <span class="list-progress" id="missing-total" style="color:#888">Loading…</span>
+</div>`;
+
+  for (const setId of sortedSetIds) {
+    const cards = await fetchSetCards(setId);
+    const missing = cards.filter(c => !collection[c.id]);
+    if (!missing.length) continue;
+    totalMissing += missing.length;
+    const setName = setMeta[setId]?.name || setId;
+    const tiles = missing.map(c => cardTile(c, { showSet: false })).join('');
+    html += `<div class="list-section" data-collection-set="${esc(setId)}">
+  <div class="list-header" onclick="this.parentElement.classList.toggle('collapsed')">
+    <div class="list-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="list-name">${esc(setName)}</span>
+    </div>
+    <span class="list-progress">${missing.length} missing of ${cards.length}</span>
+  </div>
+  <div class="list-body">
+    <div class="card-grid">${tiles}</div>
+  </div>
+</div>`;
+  }
+
+  el.innerHTML = html;
+  const totalEl = document.getElementById('missing-total');
+  if (totalEl) totalEl.textContent = `${totalMissing} cards missing`;
 };
 
 window.toggleCollectionSet = async function(header, setId) {
@@ -1434,6 +1502,10 @@ async function renderProfile(uid, filterListId) {
     }
 
     let html = '<div class="list-cards-grid">';
+    html += `<div class="list-card list-card-missing" onclick="viewProfileMissing('${esc(uid)}')">
+  <div class="list-card-name">All Missing</div>
+  <div class="list-card-count">Across all lists</div>
+</div>`;
     for (const [listId, listInfo] of listArr) {
       const count = itemCounts[listId] || 0;
       html += `<div class="list-card" onclick="location.hash='#/profile/${esc(uid)}/${esc(listId)}'">
@@ -1449,6 +1521,101 @@ async function renderProfile(uid, filterListId) {
     headerEl.innerHTML = `<div class="loading">Failed to load profile: ${esc(e.message)}</div>`;
   }
 }
+
+window.viewProfileMissing = async function(uid) {
+  const listsEl = document.getElementById('profile-wishlists');
+  listsEl.innerHTML = '<div class="loading"><div class="spinner"></div>Loading missing cards…</div>';
+
+  try {
+    const [cSnap, wSnap] = await Promise.all([
+      getDoc(doc(db, 'collections', uid)),
+      getDoc(doc(db, 'wantlists', uid)),
+    ]);
+    const coll = { ...(cSnap.data() || {}) }; delete coll.updatedAt;
+    const wlData = wSnap.data() || {};
+
+    let lists, listArr;
+    if (wlData._version === 3) {
+      lists = wlData._lists || {};
+      listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+    } else if (Object.keys(wlData).length) {
+      lists = { _legacy: { name: 'Wishlist', order: 0 } };
+      listArr = [['_legacy', { name: 'Wishlist', order: 0 }]];
+    } else {
+      listsEl.innerHTML = '<div class="wantlist-empty"><p>No lists to show.</p></div>';
+      return;
+    }
+
+    let html = `<div class="list-detail-header">
+  <button class="back-btn" onclick="location.hash='#/profile/${esc(uid)}'">← Back</button>
+  <span class="list-detail-name">All Missing Cards</span>
+  <span class="list-progress" id="profile-missing-total" style="color:#888">Loading…</span>
+</div>`;
+
+    let totalMissing = 0;
+    for (const [listId, listInfo] of listArr) {
+      const isLegacy = listId === '_legacy';
+      let allCards = [];
+
+      if (isLegacy) {
+        for (const [k, v] of Object.entries(wlData)) {
+          if (k.startsWith('_')) continue;
+          if (v.displayName) {
+            try { allCards.push(...await searchCards(`name:*${v.displayName}*`)); } catch (_) {}
+          }
+        }
+      } else {
+        const items = Object.entries(wlData).filter(([k, v]) => !k.startsWith('_') && v.list === listId);
+        const setsNeeded = new Set();
+        for (const [, item] of items) setsNeeded.add(item.setId);
+        const setCardMap = {};
+        for (const setId of setsNeeded) {
+          try { setCardMap[setId] = await fetchSetCards(setId); } catch (_) { setCardMap[setId] = []; }
+        }
+        for (const [, item] of items) {
+          const setCards = setCardMap[item.setId] || [];
+          if (item.type === 'set') allCards.push(...setCards);
+          else if (item.type === 'card') {
+            const m = setCards.find(c => c.id === item.cardId);
+            if (m) allCards.push(m);
+          }
+        }
+      }
+
+      const seen = new Set();
+      allCards = allCards.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+      const missing = allCards.filter(c => !coll[c.id]);
+      if (!missing.length) continue;
+
+      totalMissing += missing.length;
+      missing.sort((a, b) => {
+        const setCmp = (a.set?.releaseDate || '').localeCompare(b.set?.releaseDate || '');
+        if (setCmp !== 0) return setCmp;
+        return (parseInt(a.number) || 0) - (parseInt(b.number) || 0);
+      });
+
+      html += `<div class="list-section">
+  <div class="list-header" onclick="this.parentElement.classList.toggle('collapsed')">
+    <div class="list-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="list-name">${esc(listInfo.name)}</span>
+    </div>
+    <span class="list-progress">${missing.length} missing</span>
+  </div>
+  <div class="list-body">
+    <div class="card-grid">${missing.map(c => cardTile(c, { readonly: true, showSet: true, collectionOverride: coll })).join('')}</div>
+  </div>
+</div>`;
+    }
+
+    listsEl.innerHTML = html;
+    const totalEl = document.getElementById('profile-missing-total');
+    if (totalEl) totalEl.textContent = `${totalMissing} card${totalMissing !== 1 ? 's' : ''} missing`;
+    if (!totalMissing) listsEl.innerHTML += '<div class="wantlist-empty"><p>No missing cards — they have everything!</p></div>';
+  } catch (e) {
+    listsEl.innerHTML = `<div class="wantlist-empty"><p>Failed to load: ${esc(e.message)}</p></div>`;
+  }
+};
 
 async function loadProfileListCards(listId, wlData, coll) {
   const gridEl = document.getElementById('profile-list-cards');
