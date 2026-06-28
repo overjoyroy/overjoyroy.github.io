@@ -70,7 +70,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 /* ── Card tiles ── */
 .card-tile{background:#fff;border-radius:10px;padding:9px;text-align:center;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:box-shadow .15s,opacity .2s,outline-color .15s}
 .card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.15)}
-.card-tile.owned{opacity:.5;outline:2px solid var(--green)}
+.card-tile.owned{opacity:.55;outline:2px solid var(--green)}
+.owned-badge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(46,204,113,.85);color:#fff;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:10px;z-index:3;pointer-events:none;text-transform:uppercase;letter-spacing:.5px}
 .card-tile.selected{outline:2px solid var(--blue);opacity:1}
 .card-tile.hidden{display:none!important}
 .card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
@@ -84,11 +85,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-set-badge{font-size:.58rem;color:#ccc;line-height:1.3}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px;padding:12px 0}
 
-/* ── Owned checkbox ── */
-.owned-check{position:absolute;top:6px;right:6px;cursor:pointer;z-index:2}
-.owned-check input{display:none}
-.checkmark{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:2px solid #ddd;background:#fff;font-size:.68rem;color:transparent;transition:all .15s}
-.owned-check input:checked+.checkmark{background:var(--green);border-color:var(--green);color:#fff}
 
 /* ── My Lists tab ── */
 .lists-header{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -124,12 +120,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .list-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.15);transform:translateY(-2px)}
 .list-card-thumb{width:80px;height:112px;margin:0 auto 8px;border-radius:6px;overflow:hidden;background:#f0f0f5;display:flex;align-items:center;justify-content:center}
 .list-card-thumb img{width:100%;height:100%;object-fit:cover;border-radius:6px}
+.list-card-collection{background:var(--dark);color:#fff}
+.list-card-collection .list-card-name{color:#fff}
+.list-card-collection .list-card-count{color:rgba(255,255,255,.6)}
 .list-card-name{font-size:.88rem;font-weight:700;color:var(--dark);margin-bottom:4px}
 .list-card-count{font-size:.72rem;color:#aaa}
 .list-card-menu{position:absolute;top:8px;right:8px;background:none;border:none;color:#ccc;cursor:pointer;font-size:.8rem;padding:2px 5px;border-radius:6px}
 .list-card-menu:hover{background:#f0f0f5;color:#888}
 .list-detail-header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #eee;flex-wrap:wrap}
 .list-detail-name{font-size:.95rem;font-weight:700;flex:1}
+.list-action-btn{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:8px;font-size:.72rem;cursor:pointer}
+.list-action-btn:hover{background:#e0e0e5}
+.list-action-delete{color:#e53238}
+.list-action-delete:hover{background:#fde;border-color:#e53238}
 
 /* ── Floating action bar ── */
 #action-bar{position:fixed;bottom:0;left:0;right:0;background:var(--dark);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:150;box-shadow:0 -2px 12px rgba(0,0,0,.3)}
@@ -140,6 +143,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .action-bar-add:hover{background:#27ae60}
 .action-bar-cancel{background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.2);padding:7px 14px;border-radius:8px;font-size:.78rem;cursor:pointer}
 .action-bar-cancel:hover{color:#fff;border-color:rgba(255,255,255,.5)}
+.action-bar-owned{background:var(--green);color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.78rem;font-weight:600;cursor:pointer}
+.action-bar-owned:hover{background:#27ae60}
+.action-bar-unowned{background:#888;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.action-bar-unowned:hover{background:#666}
+.action-bar-remove{background:#e53238;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.action-bar-remove:hover{background:#c0272d}
 .action-list-picker{position:absolute;bottom:100%;right:0;margin-bottom:6px;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:var(--shadow);min-width:180px;max-height:200px;overflow-y:auto}
 .action-list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
 .action-list-picker-item:hover{background:#f0f0f5}
@@ -154,7 +163,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
 .friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
 .friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
-.friend-no-photo{width:38px;height:38px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0}
+.friend-no-photo{width:38px;height:38px;border-radius:50%;background:#ddd;color:#aaa;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.friend-no-photo svg{width:20px;height:20px}
 .friend-info h3{font-size:.88rem;font-weight:600}
 .friend-info p{font-size:.74rem;color:#999}
 
@@ -164,7 +174,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .back-btn:hover{background:#f5f5f5}
 .profile-header{padding:24px 16px;text-align:center;background:#fff;border-bottom:1px solid #eee}
 .profile-avatar{width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 10px;display:block}
-.profile-no-photo{width:72px;height:72px;border-radius:50%;background:var(--dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.5rem;margin:0 auto 10px}
+.profile-no-photo{width:72px;height:72px;border-radius:50%;background:#ddd;color:#aaa;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.profile-no-photo svg{width:36px;height:36px}
 .profile-name{font-size:1.2rem;font-weight:700;margin-bottom:4px}
 .profile-bio{font-size:.82rem;color:#888;font-style:italic;margin-bottom:8px}
 .profile-stats-row{display:flex;gap:20px;justify-content:center;font-size:.78rem;color:#aaa;margin-top:6px}
@@ -378,7 +389,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div id="welcome-view" class="tab-panel hidden">
     <div id="welcome-view-inner">
       <div class="welcome-card-wrap">
-        <img class="welcome-card-img" src="./njoysporygon.png" alt="Joy's Porygon">
+        <img class="welcome-card-img" src="./joysporygon.png" alt="Joy's Porygon">
       </div>
       <div class="welcome-title">Welcome to Porydex</div>
       <p class="welcome-tagline">Track your Pokemon card collection, share wishlists, and see what other collectors have.</p>
@@ -421,10 +432,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <!-- Floating action bar for multi-select -->
 <div id="action-bar" class="hidden">
   <span id="action-bar-count">0 selected</span>
-  <div class="action-bar-btns">
-    <button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Add to list ▾</button>
-    <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>
-  </div>
+  <div class="action-bar-btns" id="action-bar-buttons"></div>
 </div>
 
 <!-- Action bar list picker -->

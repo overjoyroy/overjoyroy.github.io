@@ -65,6 +65,9 @@ let selectMode     = false;
 let selectedCards  = new Set();
 let selectedSets   = new Set();
 let addingToList   = null;    // list ID when in "adding to list" mode
+let selectionContext = 'search'; // 'search', 'list', or 'collection'
+let viewingListId  = null;    // which list detail is open
+let viewingCollection = false; // true when viewing My Collection
 
 // Search filter state
 let activeFilters  = [];      // [{ type, value, label }]
@@ -522,7 +525,6 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
   cardDataMap[card.id] = card;
   const coll   = collectionOverride || collection;
   const owned  = !!coll[card.id];
-  const ro     = readonly || isGuest;
   const imgSrc = card.images?.small || '';
   const price  = bestPrice(card.tcgplayer?.prices);
   const sel    = selectable && selectedCards.has(card.id);
@@ -530,18 +532,16 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
     ? `<img class="card-img" src="${esc(imgSrc)}" alt="${esc(card.name)}" loading="lazy">`
     : `<div class="no-img">No image</div>`;
 
-  const clickAction = selectable
+  const clickAction = selectable || (!readonly && !isGuest)
     ? `toggleCardSelect('${esc(card.id)}')`
     : `openModal('${esc(card.id)}')`;
 
+  const overlayText = sel ? 'Selected' : (owned ? '' : (selectable || (!readonly && !isGuest) ? 'Select' : 'View details'));
+
   return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
-  ${!ro ? `<label class="owned-check">
-    <input type="checkbox" ${owned ? 'checked' : ''}
-           onchange="handleToggle(this,'${esc(card.id)}')">
-    <span class="checkmark">✓</span>
-  </label>` : ''}
+  ${owned ? '<div class="owned-badge">Owned</div>' : ''}
   <div class="card-img-wrap" onclick="${clickAction}">
-    ${img}<div class="card-overlay">${selectable ? (sel ? 'Selected' : 'Select') : 'View details'}</div>
+    ${img}<div class="card-overlay">${overlayText}</div>
   </div>
   <span class="card-name">${esc(card.name)}</span>
   <span class="card-num">${esc(card.number)}</span>
@@ -554,9 +554,10 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
 // MULTI-SELECT
 // ─────────────────────────────────────────────────────────────────
 
-function enterSelectMode(listId) {
+function enterSelectMode(listId, context) {
   selectMode = true;
   addingToList = listId || null;
+  selectionContext = context || 'search';
   selectedCards.clear();
   selectedSets.clear();
   updateActionBar();
@@ -574,7 +575,8 @@ function exitSelectMode() {
 window.toggleCardSelect = function(cardId) {
   if (!selectMode) {
     if (isGuest) { openModal(cardId); return; }
-    enterSelectMode(null);
+    const ctx = viewingCollection ? 'collection' : (viewingListId ? 'list' : 'search');
+    enterSelectMode(ctx === 'list' ? viewingListId : null, ctx);
   }
   if (selectedCards.has(cardId)) {
     selectedCards.delete(cardId);
@@ -585,6 +587,19 @@ window.toggleCardSelect = function(cardId) {
   }
   if (!selectedCards.size && !selectedSets.size) exitSelectMode();
   else updateActionBar();
+};
+
+window.selectAllInList = function() {
+  if (!viewingListId) return;
+  enterSelectMode(viewingListId, 'list');
+  document.querySelectorAll('#lists-content .card-tile').forEach(tile => {
+    const id = tile.dataset.id;
+    if (id && !selectedCards.has(id)) {
+      selectedCards.add(id);
+      tile.classList.add('selected');
+    }
+  });
+  updateActionBar();
 };
 
 window.selectAllVisible = function() {
@@ -609,7 +624,6 @@ window.selectEntireSet = function(setId) {
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   if (!bar) return;
-  const count = selectedCards.size + (selectedSets.size ? ` + ${selectedSets.size} set${selectedSets.size > 1 ? 's' : ''}` : '');
   if (!selectMode || (!selectedCards.size && !selectedSets.size)) {
     bar.classList.add('hidden');
     return;
@@ -617,6 +631,20 @@ function updateActionBar() {
   bar.classList.remove('hidden');
   document.getElementById('action-bar-count').textContent =
     `${selectedCards.size} card${selectedCards.size !== 1 ? 's' : ''}${selectedSets.size ? ` + ${selectedSets.size} set${selectedSets.size !== 1 ? 's' : ''}` : ''} selected`;
+
+  const btns = document.getElementById('action-bar-buttons');
+  if (selectionContext === 'collection') {
+    btns.innerHTML = `<button class="action-bar-unowned" onclick="markSelectedNotOwned()">Mark Not Owned</button>
+  <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
+  } else if (selectionContext === 'list') {
+    btns.innerHTML = `<button class="action-bar-owned" onclick="markSelectedOwned()">Mark Owned</button>
+  <button class="action-bar-unowned" onclick="markSelectedNotOwned()">Mark Not Owned</button>
+  <button class="action-bar-remove" onclick="removeSelectedFromList()">Remove from List</button>
+  <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
+  } else {
+    btns.innerHTML = `<button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Add to list ▾</button>
+  <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
+  }
 }
 
 window.commitSelection = async function(listId) {
@@ -638,6 +666,62 @@ window.commitSelection = async function(listId) {
 };
 
 window.cancelSelection = function() { exitSelectMode(); };
+
+window.markSelectedOwned = async function() {
+  if (!currentUser) return;
+  const ref = doc(db, 'collections', currentUser.uid);
+  const delta = { updatedAt: serverTimestamp() };
+  for (const cardId of selectedCards) {
+    collection[cardId] = true;
+    delta[cardId] = true;
+  }
+  await updateDoc(ref, delta).catch(async e => {
+    if (e.code === 'not-found') await setDoc(ref, delta);
+    else throw e;
+  });
+  selectedCards.forEach(id => syncTiles(id, true));
+  showToast(`Marked ${selectedCards.size} card${selectedCards.size !== 1 ? 's' : ''} as owned`);
+  exitSelectMode();
+  if (viewingListId) openList(viewingListId);
+};
+
+window.markSelectedNotOwned = async function() {
+  if (!currentUser) return;
+  const ref = doc(db, 'collections', currentUser.uid);
+  const delta = { updatedAt: serverTimestamp() };
+  for (const cardId of selectedCards) {
+    delete collection[cardId];
+    delta[cardId] = deleteField();
+  }
+  await updateDoc(ref, delta).catch(() => {});
+  selectedCards.forEach(id => syncTiles(id, false));
+  const count = selectedCards.size;
+  const wasCollection = viewingCollection;
+  const wasListId = viewingListId;
+  showToast(`Unmarked ${count} card${count !== 1 ? 's' : ''}`);
+  exitSelectMode();
+  if (wasCollection) openCollection();
+  else if (wasListId) openList(wasListId);
+};
+
+window.removeSelectedFromList = async function() {
+  if (!currentUser || !viewingListId) return;
+  const ref = doc(db, 'wantlists', currentUser.uid);
+  const updates = {};
+  const items = getListItems(viewingListId);
+
+  for (const cardId of selectedCards) {
+    const match = items.find(i => i.type === 'card' && i.cardId === cardId);
+    if (match) updates[match.itemId] = deleteField();
+  }
+
+  if (Object.keys(updates).length) {
+    await updateDoc(ref, updates);
+    showToast(`Removed ${Object.keys(updates).length} card${Object.keys(updates).length !== 1 ? 's' : ''} from list`);
+  }
+  exitSelectMode();
+  openList(viewingListId);
+};
 
 window.showActionListPicker = function() {
   const picker = document.getElementById('action-list-picker');
@@ -826,18 +910,14 @@ async function runFilteredSearch() {
 // MY LISTS TAB
 // ─────────────────────────────────────────────────────────────────
 
-async function renderLists() {
+window.renderLists = async function renderLists() {
+  viewingListId = null;
+  viewingCollection = false;
   const el = document.getElementById('lists-content');
   const lists = getLists();
   const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
 
-  if (!listArr.length) {
-    el.innerHTML = `<div class="wantlist-empty">
-      <p>No lists yet.</p>
-      <p>Click <strong>"+ New List"</strong> to create one, then add cards from Search.</p>
-    </div>`;
-    return;
-  }
+  const ownedCount = Object.keys(collection).length;
 
   const itemCounts = {};
   for (const [k, v] of Object.entries(wantlists)) {
@@ -846,6 +926,18 @@ async function renderLists() {
   }
 
   let html = '<div class="list-cards-grid">';
+  html += `<div class="list-card list-card-collection" onclick="openCollection()">
+  <div class="list-card-name">My Collection</div>
+  <div class="list-card-count">${ownedCount} card${ownedCount !== 1 ? 's' : ''} owned</div>
+</div>`;
+
+  if (!listArr.length) {
+    html += '</div>';
+    el.innerHTML = html + `<div class="wantlist-empty" style="padding-top:20px">
+      <p>No wishlists yet. Click <strong>"+ New List"</strong> to create one.</p>
+    </div>`;
+    return;
+  }
   if (listArr.length > 1) {
     const totalItems = Object.values(itemCounts).reduce((a, b) => a + b, 0);
     html += `<div class="list-card" onclick="openList('__all__')">
@@ -871,6 +963,7 @@ async function renderLists() {
 }
 
 window.openList = async function(listId) {
+  viewingListId = listId === '__all__' ? null : listId;
   const el = document.getElementById('lists-content');
   const lists = getLists();
   const isAll = listId === '__all__';
@@ -902,13 +995,98 @@ window.openList = async function(listId) {
   const nOwned = cards.filter(c => collection[c.id]).length;
   const tiles = cards.map(c => cardTile(c, { showSet: true })).join('');
 
+  const menuBtns = isAll ? '' : `<button class="add-cards-btn" onclick="addCardsToList('${esc(listId)}')">+ Add cards</button>
+  <button class="list-action-btn" onclick="selectAllInList()">Select All</button>
+  <button class="list-action-btn" onclick="renameList('${esc(listId)}')">Rename</button>
+  <button class="list-action-btn" onclick="shareList('${esc(listId)}')">Share</button>
+  <button class="list-action-btn list-action-delete" onclick="deleteList('${esc(listId)}')">Delete</button>`;
+
   el.innerHTML = `<div class="list-detail-header">
   <button class="back-btn" onclick="renderLists()">← Back</button>
   <span class="list-detail-name">${esc(name)}</span>
   <span class="list-progress" style="color:#888">${nOwned} / ${cards.length} owned</span>
-  ${!isAll ? `<button class="add-cards-btn" onclick="addCardsToList('${esc(listId)}')">+ Add cards</button>` : ''}
+  ${menuBtns}
 </div>
 <div class="card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
+};
+
+window.openCollection = async function() {
+  viewingListId = null;
+  viewingCollection = true;
+  const el = document.getElementById('lists-content');
+  const ownedIds = Object.keys(collection);
+
+  if (!ownedIds.length) {
+    el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="renderLists()">← Back</button>
+  <span class="list-detail-name">My Collection</span>
+</div>
+<div class="wantlist-empty"><p>No cards owned yet. Browse sets and mark cards as owned.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="renderLists()">← Back</button>
+  <span class="list-detail-name">My Collection</span>
+  <span class="list-progress" style="color:#888">${ownedIds.length} card${ownedIds.length !== 1 ? 's' : ''}</span>
+</div>
+<div class="loading"><div class="spinner"></div>Loading collection…</div>`;
+
+  // Group owned card IDs by set
+  const bySet = {};
+  for (const cardId of ownedIds) {
+    const parts = cardId.match(/^(.+)-\d+$/);
+    const setId = parts ? parts[1] : cardId;
+    (bySet[setId] = bySet[setId] || []).push(cardId);
+  }
+
+  // Fetch sets metadata for ordering
+  const sets = await fetchAllSets();
+  const setMeta = Object.fromEntries(sets.map(s => [s.id, s]));
+  const sortedSetIds = Object.keys(bySet).sort((a, b) =>
+    (setMeta[a]?.releaseDate || '').localeCompare(setMeta[b]?.releaseDate || '')
+  );
+
+  let html = `<div class="list-detail-header">
+  <button class="back-btn" onclick="renderLists()">← Back</button>
+  <span class="list-detail-name">My Collection</span>
+  <span class="list-progress" style="color:#888">${ownedIds.length} card${ownedIds.length !== 1 ? 's' : ''}</span>
+</div>`;
+
+  for (const setId of sortedSetIds) {
+    const setName = setMeta[setId]?.name || setId;
+    const cardIds = bySet[setId];
+    html += `<div class="list-section collapsed" data-collection-set="${esc(setId)}">
+  <div class="list-header" onclick="toggleCollectionSet(this, '${esc(setId)}')">
+    <div class="list-header-left">
+      <span class="toggle-icon">▾</span>
+      <span class="list-name">${esc(setName)}</span>
+    </div>
+    <span class="list-progress">${cardIds.length} owned</span>
+  </div>
+  <div class="list-body">
+    <div class="card-grid" id="collection-set-${esc(setId)}">
+      <div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>`;
+  }
+
+  el.innerHTML = html;
+};
+
+window.toggleCollectionSet = async function(header, setId) {
+  const section = header.closest('.list-section');
+  section.classList.toggle('collapsed');
+
+  const grid = document.getElementById(`collection-set-${setId}`);
+  if (!section.classList.contains('collapsed') && grid && !grid.dataset.loaded) {
+    grid.dataset.loaded = 'true';
+    const cards = await fetchSetCards(setId);
+    const ownedInSet = cards.filter(c => collection[c.id]);
+    ownedInSet.sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
+    grid.innerHTML = ownedInSet.map(c => cardTile(c, { showSet: false })).join('') || '<p class="list-empty">No cards.</p>';
+  }
 };
 
 window.promptNewList = async function() {
@@ -940,17 +1118,17 @@ async function renderCommunity() {
 
     snap.forEach(d => {
       const uid = d.id;
-      if (currentUser && uid === currentUser.uid) return;
+      const isYou = currentUser && uid === currentUser.uid;
       const data = d.data();
       const name = userName(data);
       const photo = data.photoURL || '';
       const bio = data.bio || '';
       const av = photo
         ? `<img class="friend-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-        : `<div class="friend-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
+        : `<div class="friend-no-photo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg></div>`;
       html += `<div class="friend-card" onclick="location.hash='#/profile/${esc(uid)}'">
   ${av}
-  <div class="friend-info"><h3>${esc(name)}</h3>${bio ? `<p>${esc(bio)}</p>` : ''}</div>
+  <div class="friend-info"><h3>${esc(name)}${isYou ? ' <span style="font-size:.7rem;color:#aaa">(You)</span>' : ''}</h3>${bio ? `<p>${esc(bio)}</p>` : ''}</div>
 </div>`;
     });
 
@@ -1134,7 +1312,7 @@ async function renderProfile(uid, filterListId) {
 
     const avatarHtml = photo
       ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-      : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
+      : `<div class="profile-no-photo"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg></div>`;
 
     headerEl.innerHTML = `
       ${avatarHtml}
@@ -1266,6 +1444,18 @@ async function loadProfileListCards(listId, wlData, coll) {
   }
 }
 
+async function loadSettings() {
+  if (!currentUser) return;
+  const snap = await getDoc(doc(db, 'users', currentUser.uid));
+  const data = snap.data() || {};
+  document.getElementById('settings-name').value = data.customName || '';
+  document.getElementById('settings-bio').value = data.bio || '';
+  document.getElementById('settings-public-cb').checked = !!data.publicProfile;
+  const photo = document.getElementById('settings-photo');
+  if (currentUser.photoURL) { photo.src = currentUser.photoURL; photo.style.display = ''; }
+  else photo.style.display = 'none';
+}
+
 window.saveSettings = async function() {
   if (!currentUser) return;
   const customName = document.getElementById('settings-name')?.value?.trim() || '';
@@ -1299,6 +1489,7 @@ window.switchTab = async function switchTab(tab, fromRouter) {
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   if (tab === 'lists') await renderLists();
   if (tab === 'community') await renderCommunity();
+  if (tab === 'settings') await loadSettings();
   if (tab === 'search' && addingToList) {
     const lists = getLists();
     const name = lists[addingToList]?.name || 'list';
