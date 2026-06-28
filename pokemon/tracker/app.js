@@ -20,6 +20,9 @@ import {
 
 const ALLOWED_EMAILS = [
   'jroy4@umbc.edu',
+  'ahmedkzing@gmail.com',
+  'kschris37@gmail.com',
+  'jroy297@gmail.com',
 ];
 
 const TCG_API = 'https://api.pokemontcg.io/v2';
