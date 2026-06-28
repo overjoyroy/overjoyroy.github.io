@@ -369,13 +369,26 @@ function listenWantlists() {
   if (wlUnsub) wlUnsub();
   wlUnsub = onSnapshot(doc(db, 'wantlists', currentUser.uid), async snap => {
     const data = snap.data() || {};
-    if (Object.keys(data).length && data._version !== 3) {
-      console.info('[Porydex] Migrating wantlist to v3 (fresh start)');
-      const fresh = { _version: 3, _lists: {} };
-      await setDoc(doc(db, 'wantlists', currentUser.uid), fresh);
-      wantlists = fresh;
+    if (data._version === 3) {
+      wantlists = data;
+    } else if (Object.keys(data).length) {
+      // v2 data exists — migrate it to v3 preserving entries
+      console.info('[Porydex] Migrating wantlist v2 → v3');
+      const listId = `list_${Date.now()}`;
+      const migrated = {
+        _version: 3,
+        _lists: { [listId]: { name: 'My Wishlist', createdAt: serverTimestamp(), order: 0 } },
+      };
+      for (const [k, v] of Object.entries(data)) {
+        if (k.startsWith('_')) continue;
+        if (v.displayName) {
+          migrated[`item_${Date.now()}_${k}`] = { type: 'card', cardId: k, setId: '', list: listId, _legacyName: v.displayName };
+        }
+      }
+      await setDoc(doc(db, 'wantlists', currentUser.uid), migrated);
+      wantlists = migrated;
     } else {
-      wantlists = data._version === 3 ? data : { _version: 3, _lists: {} };
+      wantlists = { _version: 3, _lists: {} };
     }
     if (activeTab === 'lists') renderLists();
   });
@@ -1011,7 +1024,12 @@ window.openList = async function(listId) {
   <span class="list-progress" style="color:#888">${nOwned} / ${cards.length} owned</span>
   ${menuBtns}
 </div>
-<div class="card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
+<div class="card-filter-bar">
+  <button class="card-filter-btn active" onclick="applyCardFilter('all', this)">All</button>
+  <button class="card-filter-btn" onclick="applyCardFilter('missing', this)">Missing Only</button>
+  <button class="card-filter-btn" onclick="applyCardFilter('owned', this)">Owned Only</button>
+</div>
+<div class="card-grid" id="filtered-card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
 };
 
 window.openCollection = async function() {
@@ -1056,6 +1074,11 @@ window.openCollection = async function() {
   <button class="back-btn" onclick="renderLists()">← Back</button>
   <span class="list-detail-name">My Collection</span>
   <span class="list-progress" style="color:#888">${ownedIds.length} card${ownedIds.length !== 1 ? 's' : ''}</span>
+</div>
+<div class="card-filter-bar">
+  <button class="card-filter-btn active" onclick="setCollectionFilter('owned', this)">Owned Only</button>
+  <button class="card-filter-btn" onclick="setCollectionFilter('all', this)">Full Sets</button>
+  <button class="card-filter-btn" onclick="setCollectionFilter('missing', this)">Missing Only</button>
 </div>`;
 
   for (const setId of sortedSetIds) {
@@ -1080,6 +1103,23 @@ window.openCollection = async function() {
   el.innerHTML = html;
 };
 
+let collectionFilterMode = 'owned';
+
+window.setCollectionFilter = function(mode, btn) {
+  collectionFilterMode = mode;
+  document.querySelectorAll('.card-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Reset loaded state so sets re-render with new filter
+  document.querySelectorAll('[data-collection-set]').forEach(section => {
+    const grid = section.querySelector('.card-grid');
+    if (grid) { grid.dataset.loaded = ''; grid.innerHTML = '<div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>'; }
+    if (!section.classList.contains('collapsed')) {
+      const setId = section.dataset.collectionSet;
+      toggleCollectionSet(section.querySelector('.list-header'), setId);
+    }
+  });
+};
+
 window.toggleCollectionSet = async function(header, setId) {
   const section = header.closest('.list-section');
   section.classList.toggle('collapsed');
@@ -1087,11 +1127,29 @@ window.toggleCollectionSet = async function(header, setId) {
   const grid = document.getElementById(`collection-set-${setId}`);
   if (!section.classList.contains('collapsed') && grid && !grid.dataset.loaded) {
     grid.dataset.loaded = 'true';
-    const cards = await fetchSetCards(setId);
-    const ownedInSet = cards.filter(c => collection[c.id]);
-    ownedInSet.sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
-    grid.innerHTML = ownedInSet.map(c => cardTile(c, { showSet: false })).join('') || '<p class="list-empty">No cards.</p>';
+    const allCards = await fetchSetCards(setId);
+    let cards;
+    if (collectionFilterMode === 'owned') cards = allCards.filter(c => collection[c.id]);
+    else if (collectionFilterMode === 'missing') cards = allCards.filter(c => !collection[c.id]);
+    else cards = allCards;
+    cards.sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
+    grid.innerHTML = cards.map(c => cardTile(c, { showSet: false })).join('') || '<p class="list-empty">No cards match this filter.</p>';
   }
+};
+
+let activeCardFilter = 'all';
+
+window.applyCardFilter = function(mode, btn) {
+  activeCardFilter = mode;
+  document.querySelectorAll('.card-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Find all visible card grids and apply filter
+  document.querySelectorAll('.tab-panel:not(.hidden) .card-tile, #profile-view:not(.hidden) .card-tile').forEach(tile => {
+    const owned = tile.classList.contains('owned');
+    if (mode === 'owned') tile.style.display = owned ? '' : 'none';
+    else if (mode === 'missing') tile.style.display = owned ? 'none' : '';
+    else tile.style.display = '';
+  });
 };
 
 window.promptNewList = async function() {
@@ -1326,9 +1384,19 @@ async function renderProfile(uid, filterListId) {
         <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
       </div>`;
 
-    // Render list headers immediately, load cards lazily
-    const lists = wlData._lists || {};
-    const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+    // Handle both v2 and v3 wantlist formats
+    let lists, listArr;
+    if (wlData._version === 3) {
+      lists = wlData._lists || {};
+      listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+    } else if (Object.keys(wlData).length) {
+      // v2 format: Pokemon names as keys — show as a single "Wishlist"
+      lists = { _legacy: { name: 'Wishlist', order: 0 } };
+      listArr = [['_legacy', { name: 'Wishlist', order: 0 }]];
+    } else {
+      lists = {};
+      listArr = [];
+    }
 
     if (!listArr.length) {
       listsEl.innerHTML = '<div class="wantlist-empty"><p>No lists yet.</p></div>';
@@ -1346,7 +1414,12 @@ async function renderProfile(uid, filterListId) {
   <span class="list-detail-name">${esc(match[1].name)}</span>
   <span class="list-progress" id="profile-list-progress" style="color:#888">Loading…</span>
 </div>
-<div class="card-grid" id="profile-list-cards">
+<div class="card-filter-bar">
+  <button class="card-filter-btn active" onclick="applyCardFilter('all', this)">All</button>
+  <button class="card-filter-btn" onclick="applyCardFilter('missing', this)">Missing Only</button>
+  <button class="card-filter-btn" onclick="applyCardFilter('owned', this)">Owned Only</button>
+</div>
+<div class="card-grid" id="profile-list-cards" data-filterable="true">
   <div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>
 </div>`;
       loadProfileListCards(filterListId, wlData, coll);
@@ -1383,44 +1456,49 @@ async function loadProfileListCards(listId, wlData, coll) {
   if (!gridEl) return;
 
   try {
-    const items = Object.entries(wlData)
-      .filter(([k, v]) => !k.startsWith('_') && v.list === listId);
-
-    if (!items.length) {
-      gridEl.innerHTML = '<p class="list-empty">Empty list.</p>';
-      if (progEl) progEl.textContent = '0 cards';
-      return;
-    }
-
-    // Group all needed sets to minimize API calls
-    const setsNeeded = new Set();
-    const cardIdsNeeded = new Set();
-    for (const [, item] of items) {
-      setsNeeded.add(item.setId);
-      if (item.type === 'card') cardIdsNeeded.add(item.cardId);
-    }
-
-    // Fetch all needed sets (deduplicated)
-    const setCardMap = {};
-    if (progEl) progEl.textContent = `Loading ${setsNeeded.size} set${setsNeeded.size !== 1 ? 's' : ''}…`;
-    for (const setId of setsNeeded) {
-      try {
-        setCardMap[setId] = await fetchSetCards(setId);
-      } catch (e) {
-        console.warn('[Porydex] Failed to fetch set:', setId, e);
-        setCardMap[setId] = [];
-      }
-    }
-
-    // Resolve items to cards
+    // Handle v2 legacy format (Pokemon names) vs v3 (set/card items)
+    const isLegacy = listId === '_legacy';
     let allCards = [];
-    for (const [, item] of items) {
-      const setCards = setCardMap[item.setId] || [];
-      if (item.type === 'set') {
-        allCards.push(...setCards);
-      } else if (item.type === 'card') {
-        const match = setCards.find(c => c.id === item.cardId);
-        if (match) allCards.push(match);
+
+    if (isLegacy) {
+      const entries = Object.entries(wlData).filter(([k]) => !k.startsWith('_'));
+      if (progEl) progEl.textContent = `Loading ${entries.length} Pokémon…`;
+      for (const [, info] of entries) {
+        if (info.displayName) {
+          try {
+            const cards = await searchCards(`name:*${info.displayName}*`);
+            allCards.push(...cards);
+          } catch (_) {}
+        }
+      }
+    } else {
+      const items = Object.entries(wlData)
+        .filter(([k, v]) => !k.startsWith('_') && v.list === listId);
+
+      if (!items.length) {
+        gridEl.innerHTML = '<p class="list-empty">Empty list.</p>';
+        if (progEl) progEl.textContent = '0 cards';
+        return;
+      }
+
+      const setsNeeded = new Set();
+      for (const [, item] of items) setsNeeded.add(item.setId);
+
+      const setCardMap = {};
+      if (progEl) progEl.textContent = `Loading ${setsNeeded.size} set${setsNeeded.size !== 1 ? 's' : ''}…`;
+      for (const setId of setsNeeded) {
+        try { setCardMap[setId] = await fetchSetCards(setId); }
+        catch (e) { setCardMap[setId] = []; }
+      }
+
+      for (const [, item] of items) {
+        const setCards = setCardMap[item.setId] || [];
+        if (item.type === 'set') {
+          allCards.push(...setCards);
+        } else if (item.type === 'card') {
+          const match = setCards.find(c => c.id === item.cardId);
+          if (match) allCards.push(match);
+        }
       }
     }
 
