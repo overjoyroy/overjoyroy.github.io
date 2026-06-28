@@ -6,7 +6,7 @@
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache,
@@ -139,11 +139,15 @@ async function migrateWantlistIfNeeded(data, uid) {
 // AUTH — simple: guest by default, popup sign-in
 // ─────────────────────────────────────────────────────────────────
 
-document.getElementById('topbar-signin-btn').addEventListener('click', () => {
-  signInWithRedirect(auth, new GoogleAuthProvider());
+document.getElementById('topbar-signin-btn').addEventListener('click', async () => {
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (e) {
+    if (e.code === 'auth/popup-closed-by-user') return;
+    console.error('[Porydex] Sign-in error:', e.code, e.message);
+    alert(`Sign-in failed: ${e.code || e.message}`);
+  }
 });
-
-getRedirectResult(auth).catch(e => console.error('[Porydex] redirect error:', e.code));
 
 document.getElementById('sign-out-btn').addEventListener('click', () => signOut(auth));
 
