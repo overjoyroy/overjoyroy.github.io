@@ -139,11 +139,17 @@ async function resolveListCards(listId) {
   }
 
   const seen = new Set();
-  return allCards.filter(c => {
+  const deduped = allCards.filter(c => {
     if (seen.has(c.id)) return false;
     seen.add(c.id);
     return true;
   });
+  deduped.sort((a, b) => {
+    const setCmp = (a.set?.releaseDate || '').localeCompare(b.set?.releaseDate || '');
+    if (setCmp !== 0) return setCmp;
+    return (parseInt(a.number) || 0) - (parseInt(b.number) || 0);
+  });
+  return deduped;
 }
 
 async function addItemsToList(listId, cards, sets) {
@@ -289,17 +295,20 @@ async function bootApp() {
 
   // Hide tabs that don't apply to guests
   document.querySelectorAll('.tab-btn[data-tab="lists"]').forEach(b => b.classList.toggle('hidden', isGuest));
-  document.getElementById('modal-owned-btn').classList.toggle('hidden', isGuest);
-  document.getElementById('public-profile-toggle').style.display = isGuest ? 'none' : '';
+  document.querySelectorAll('.tab-btn[data-tab="settings"]').forEach(b => b.classList.toggle('hidden', isGuest));
+  document.getElementById('modal-owned-btn')?.classList.toggle('hidden', isGuest);
 
   document.getElementById('app').classList.remove('hidden');
 
   if (isGuest) {
     collection = {}; wantlists = {};
-    await fetchAllSets();
     handleRoute();
+    await fetchAllSets();
     return;
   }
+
+  // Route immediately so profile links don't wait for Firestore
+  handleRoute();
 
   const [userSnap] = await Promise.all([
     getDoc(doc(db, 'users', currentUser.uid)),
@@ -312,11 +321,15 @@ async function bootApp() {
   ]);
 
   const userData = userSnap.data() || {};
-  document.getElementById('public-profile-cb').checked = !!userData.publicProfile;
+  document.getElementById('settings-name').value = userData.customName || '';
+  document.getElementById('settings-bio').value = userData.bio || '';
+  document.getElementById('settings-public-cb').checked = !!userData.publicProfile;
+  const settingsPhoto = document.getElementById('settings-photo');
+  if (currentUser.photoURL) { settingsPhoto.src = currentUser.photoURL; settingsPhoto.style.display = ''; }
+  else settingsPhoto.style.display = 'none';
 
   listenCollection();
   listenWantlists();
-  handleRoute();
 }
 
 function teardown() {
@@ -452,6 +465,10 @@ async function tcgFetch(url) {
 
 async function fetchAllSets() {
   if (allSets) return allSets;
+  try {
+    const res = await fetch('./data/sets.json');
+    if (res.ok) { allSets = await res.json(); return allSets; }
+  } catch (_) {}
   const data = await tcgFetch(`${TCG_API}/sets?pageSize=250&orderBy=releaseDate&select=id,name,series,releaseDate,total,images`);
   allSets = data.data || [];
   return allSets;
@@ -461,6 +478,14 @@ async function fetchSetCards(setId) {
   const key = `cards_${setId}`;
   const hit = await cacheGet(key);
   if (hit) return hit;
+  try {
+    const res = await fetch(`./data/cards/${encodeURIComponent(setId)}.json`);
+    if (res.ok) {
+      const cards = await res.json();
+      await cacheSet(key, cards);
+      return cards;
+    }
+  } catch (_) {}
   let cards = [], page = 1, total = Infinity;
   while (cards.length < total) {
     const data = await tcgFetch(
@@ -697,6 +722,7 @@ window.showSetBrowser = function() {
   const browser = document.getElementById('set-browser');
   browser.classList.toggle('hidden');
   if (!browser.classList.contains('hidden') && !browser.dataset.loaded) {
+    browser.innerHTML = '<div class="loading"><div class="spinner"></div>Loading sets…</div>';
     renderSetBrowser();
   }
 };
@@ -823,7 +849,6 @@ async function renderLists() {
   if (listArr.length > 1) {
     const totalItems = Object.values(itemCounts).reduce((a, b) => a + b, 0);
     html += `<div class="list-card" onclick="openList('__all__')">
-  <div class="list-card-thumb" id="thumb-__all__"></div>
   <div class="list-card-name">All</div>
   <div class="list-card-count">${totalItems} item${totalItems !== 1 ? 's' : ''}</div>
 </div>`;
@@ -831,7 +856,6 @@ async function renderLists() {
   for (const [listId, listInfo] of listArr) {
     const count = itemCounts[listId] || 0;
     html += `<div class="list-card" onclick="openList('${esc(listId)}')">
-  <div class="list-card-thumb" id="thumb-${esc(listId)}"></div>
   <div class="list-card-name">${esc(listInfo.name)}</div>
   <div class="list-card-count">${count} item${count !== 1 ? 's' : ''}</div>
   <button class="list-card-menu" onclick="event.stopPropagation();toggleListMenu('${esc(listId)}')" title="Options">⋯</button>
@@ -844,38 +868,6 @@ async function renderLists() {
   }
   html += '</div>';
   el.innerHTML = html;
-
-  // Load thumbnails in the background
-  for (const [listId] of listArr) {
-    loadListThumb(listId);
-  }
-  if (listArr.length > 1) loadListThumb('__all__', listArr[0][0]);
-}
-
-async function loadListThumb(listId, fallbackListId) {
-  const targetList = listId === '__all__' ? fallbackListId : listId;
-  const items = getListItems(targetList);
-  if (!items.length) return;
-  const first = items[0];
-  const thumbEl = document.getElementById(`thumb-${listId}`);
-  if (!thumbEl) return;
-
-  try {
-    if (first.type === 'set') {
-      const sets = await fetchAllSets();
-      const setData = sets.find(s => s.id === first.setId);
-      const logo = setData?.images?.logo || setData?.images?.symbol;
-      if (logo) {
-        thumbEl.innerHTML = `<img src="${esc(logo)}" alt="" loading="lazy" style="object-fit:contain;padding:8px">`;
-        return;
-      }
-    }
-    const cards = await fetchSetCards(first.setId);
-    const card = first.type === 'card' ? cards.find(c => c.id === first.cardId) : cards[0];
-    if (card?.images?.small) {
-      thumbEl.innerHTML = `<img src="${esc(card.images.small)}" alt="" loading="lazy">`;
-    }
-  } catch (_) {}
 }
 
 window.openList = async function(listId) {
@@ -1066,7 +1058,7 @@ function showToast(msg) {
 // PROFILE VIEW + ROUTING
 // ─────────────────────────────────────────────────────────────────
 
-const VALID_TABS = ['search', 'lists', 'community'];
+const VALID_TABS = ['search', 'lists', 'community', 'settings'];
 
 function parseRoute() {
   const hash = location.hash.slice(1);
@@ -1132,7 +1124,7 @@ async function renderProfile(uid, filterListId) {
     }
 
     const userData = uSnap.data();
-    const coll = { ...cSnap.data() }; delete coll.updatedAt;
+    const coll = { ...(cSnap.data() || {}) }; delete coll.updatedAt;
     const wlData = wSnap.data() || {};
 
     const name = userName(userData);
@@ -1140,35 +1132,19 @@ async function renderProfile(uid, filterListId) {
     const bio = userData.bio || '';
     const cardsOwned = Object.keys(coll).length;
 
-    if (isOwn) {
-      headerEl.innerHTML = `
-        ${photo
-          ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-          : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
-        <div style="margin-top:10px">
-          <label class="profile-edit-label">Display Name</label>
-          <input class="profile-edit-input" id="profile-name-input" value="${esc(userData.customName || '')}" placeholder="${esc(userData.displayName || 'Your name')}">
-        </div>
-        <div>
-          <label class="profile-edit-label">Bio</label>
-          <input class="profile-edit-input" id="profile-bio-input" value="${esc(bio)}" placeholder="Tell people about your collection…">
-        </div>
-        <button class="profile-save-btn" onclick="saveProfile()">Save</button>
-        <div class="profile-stats-row">
-          <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
-        </div>`;
-    } else {
-      headerEl.innerHTML = `
-        ${photo
-          ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
-          : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`}
-        <div class="profile-name">${esc(name)}</div>
-        ${bio ? `<div class="profile-bio">${esc(bio)}</div>` : ''}
-        <div class="profile-stats-row">
-          <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
-        </div>`;
-    }
+    const avatarHtml = photo
+      ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
+      : `<div class="profile-no-photo">${esc((name[0] || '?').toUpperCase())}</div>`;
 
+    headerEl.innerHTML = `
+      ${avatarHtml}
+      <div class="profile-name">${esc(name)}</div>
+      ${bio ? `<div class="profile-bio">${esc(bio)}</div>` : ''}
+      <div class="profile-stats-row">
+        <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
+      </div>`;
+
+    // Render list headers immediately, load cards lazily
     const lists = wlData._lists || {};
     const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
 
@@ -1177,64 +1153,123 @@ async function renderProfile(uid, filterListId) {
       return;
     }
 
-    const filtered = filterListId ? listArr.filter(([id]) => id === filterListId) : listArr;
-    if (filterListId && !filtered.length) {
-      listsEl.innerHTML = '<div class="wantlist-empty"><p>List not found.</p></div>';
+    if (filterListId) {
+      const match = listArr.find(([id]) => id === filterListId);
+      if (!match) {
+        listsEl.innerHTML = '<div class="wantlist-empty"><p>List not found.</p></div>';
+        return;
+      }
+      listsEl.innerHTML = `<div class="list-detail-header">
+  <button class="back-btn" onclick="location.hash='#/profile/${esc(uid)}'">← Back</button>
+  <span class="list-detail-name">${esc(match[1].name)}</span>
+  <span class="list-progress" id="profile-list-progress" style="color:#888">Loading…</span>
+</div>
+<div class="card-grid" id="profile-list-cards">
+  <div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>
+</div>`;
+      loadProfileListCards(filterListId, wlData, coll);
       return;
     }
 
-    let html = '';
-    for (const [listId, listInfo] of filtered) {
-      const items = Object.entries(wlData)
-        .filter(([k, v]) => !k.startsWith('_') && v.list === listId);
+    // Show list cards (compact, click to open)
+    const itemCounts = {};
+    for (const [k, v] of Object.entries(wlData)) {
+      if (k.startsWith('_')) continue;
+      itemCounts[v.list] = (itemCounts[v.list] || 0) + 1;
+    }
 
-      let allCards = [];
-      for (const [, item] of items) {
-        if (item.type === 'set') {
-          const cards = await fetchSetCards(item.setId);
-          allCards.push(...cards);
-        } else if (item.type === 'card') {
-          const cards = await fetchSetCards(item.setId);
-          const match = cards.find(c => c.id === item.cardId);
-          if (match) allCards.push(match);
-        }
-      }
-      const seen = new Set();
-      allCards = allCards.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-
-      const nOwned = allCards.filter(c => coll[c.id]).length;
-      const tiles = allCards.map(c => cardTile(c, { readonly: true, showSet: true, collectionOverride: coll })).join('');
-
-      html += `<div class="list-section">
-  <div class="list-header" onclick="this.parentElement.classList.toggle('collapsed')">
-    <div class="list-header-left">
-      <span class="toggle-icon">▾</span>
-      <span class="list-name">${esc(listInfo.name)}</span>
-    </div>
-    <span class="list-progress">${nOwned} / ${allCards.length} owned</span>
-  </div>
-  <div class="list-body">
-    <div class="card-grid">${tiles || '<p class="list-empty">Empty list.</p>'}</div>
-  </div>
+    let html = '<div class="list-cards-grid">';
+    for (const [listId, listInfo] of listArr) {
+      const count = itemCounts[listId] || 0;
+      html += `<div class="list-card" onclick="location.hash='#/profile/${esc(uid)}/${esc(listId)}'">
+  <div class="list-card-name">${esc(listInfo.name)}</div>
+  <div class="list-card-count">${count} item${count !== 1 ? 's' : ''}</div>
 </div>`;
     }
-
-    if (filterListId) {
-      html = `<div style="padding:8px 16px">
-  <a href="#/profile/${esc(uid)}" style="font-size:.78rem;color:var(--dark)">← See all lists</a>
-</div>` + html;
-    }
-
+    html += '</div>';
     listsEl.innerHTML = html;
+
   } catch (e) {
+    console.error('[Porydex] Profile load error:', e);
     headerEl.innerHTML = `<div class="loading">Failed to load profile: ${esc(e.message)}</div>`;
   }
 }
 
-window.saveProfile = async function() {
+async function loadProfileListCards(listId, wlData, coll) {
+  const gridEl = document.getElementById('profile-list-cards');
+  const progEl = document.getElementById('profile-list-progress');
+  if (!gridEl) return;
+
+  try {
+    const items = Object.entries(wlData)
+      .filter(([k, v]) => !k.startsWith('_') && v.list === listId);
+
+    if (!items.length) {
+      gridEl.innerHTML = '<p class="list-empty">Empty list.</p>';
+      if (progEl) progEl.textContent = '0 cards';
+      return;
+    }
+
+    // Group all needed sets to minimize API calls
+    const setsNeeded = new Set();
+    const cardIdsNeeded = new Set();
+    for (const [, item] of items) {
+      setsNeeded.add(item.setId);
+      if (item.type === 'card') cardIdsNeeded.add(item.cardId);
+    }
+
+    // Fetch all needed sets (deduplicated)
+    const setCardMap = {};
+    if (progEl) progEl.textContent = `Loading ${setsNeeded.size} set${setsNeeded.size !== 1 ? 's' : ''}…`;
+    for (const setId of setsNeeded) {
+      try {
+        setCardMap[setId] = await fetchSetCards(setId);
+      } catch (e) {
+        console.warn('[Porydex] Failed to fetch set:', setId, e);
+        setCardMap[setId] = [];
+      }
+    }
+
+    // Resolve items to cards
+    let allCards = [];
+    for (const [, item] of items) {
+      const setCards = setCardMap[item.setId] || [];
+      if (item.type === 'set') {
+        allCards.push(...setCards);
+      } else if (item.type === 'card') {
+        const match = setCards.find(c => c.id === item.cardId);
+        if (match) allCards.push(match);
+      }
+    }
+
+    const seen = new Set();
+    allCards = allCards.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+    allCards.sort((a, b) => {
+      const setCmp = (a.set?.releaseDate || '').localeCompare(b.set?.releaseDate || '');
+      if (setCmp !== 0) return setCmp;
+      return (parseInt(a.number) || 0) - (parseInt(b.number) || 0);
+    });
+
+    const nOwned = allCards.filter(c => coll[c.id]).length;
+    if (progEl) progEl.textContent = `${nOwned} / ${allCards.length} owned`;
+
+    if (!allCards.length) {
+      gridEl.innerHTML = '<p class="list-empty">No cards found.</p>';
+      return;
+    }
+
+    gridEl.innerHTML = allCards.map(c => cardTile(c, { readonly: true, showSet: true, collectionOverride: coll })).join('');
+  } catch (e) {
+    console.error('[Porydex] List load error:', listId, e);
+    gridEl.innerHTML = `<p class="list-empty">Failed to load cards: ${esc(e.message)}</p>`;
+    if (progEl) progEl.textContent = 'Error';
+  }
+}
+
+window.saveSettings = async function() {
   if (!currentUser) return;
-  const customName = document.getElementById('profile-name-input')?.value?.trim() || '';
-  const bio = document.getElementById('profile-bio-input')?.value?.trim() || '';
+  const customName = document.getElementById('settings-name')?.value?.trim() || '';
+  const bio = document.getElementById('settings-bio')?.value?.trim() || '';
   await setDoc(doc(db, 'users', currentUser.uid), { customName, bio }, { merge: true });
   document.getElementById('user-name').textContent = customName || currentUser.displayName || currentUser.email;
   showToast('Profile saved');

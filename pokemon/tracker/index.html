@@ -173,7 +173,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .profile-edit-input:focus{border-color:#999}
 .profile-save-btn{margin-top:10px;background:var(--green);color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:.78rem;cursor:pointer}
 .profile-save-btn:hover{background:#27ae60}
+.profile-settings-btn{margin-top:10px;background:var(--dark);color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.profile-settings-btn:hover{background:#2a2a4e}
+.profile-settings{margin-top:14px;padding:14px 16px;background:#f8f8fa;border-radius:10px;max-width:320px;margin-left:auto;margin-right:auto}
 .profile-lists-header{padding:16px 16px 8px;font-size:.88rem;font-weight:700;color:#555}
+
+/* ── Settings tab ── */
+.settings-panel{max-width:480px;margin:0 auto;padding:20px 16px}
+.settings-panel h2{font-size:1rem;font-weight:700;margin-bottom:16px}
+.settings-section{background:#fff;border-radius:12px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.settings-section h3{font-size:.82rem;font-weight:700;color:var(--dark);margin-bottom:12px}
+.settings-field{margin-bottom:12px}
+.settings-label{display:block;font-size:.72rem;color:#888;margin-bottom:4px}
+.settings-input{width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:.85rem;outline:none}
+.settings-input:focus{border-color:#999}
+.settings-photo-row{display:flex;align-items:center;gap:10px}
+.settings-photo{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#eee}
+.settings-photo-hint{font-size:.72rem;color:#aaa}
+.settings-save-btn{background:var(--green);color:#fff;border:none;padding:8px 20px;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer}
+.settings-save-btn:hover{background:#27ae60}
+.settings-toggle{font-size:.8rem;color:#555;display:flex;align-items:flex-start;gap:8px;cursor:pointer;line-height:1.4}
+.settings-toggle input{accent-color:var(--green);margin-top:3px}
+.settings-hint{font-size:.76rem;color:#aaa;margin-bottom:8px}
+.settings-import-btn{background:#888;color:#fff;border:none;padding:7px 16px;border-radius:8px;font-size:.78rem;cursor:pointer}
+.settings-import-btn:hover{background:#666}
 
 /* ── Welcome page ── */
 #welcome-view{max-width:600px;margin:0 auto;padding:32px 20px 48px;text-align:center}
@@ -250,6 +273,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button class="tab-btn" data-tab="search">Search</button>
       <button class="tab-btn" data-tab="lists">My Lists</button>
       <button class="tab-btn" data-tab="community">Community</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
     <div class="auth-info">
       <img class="user-photo" id="user-photo" src="" alt="" hidden>
@@ -305,13 +329,47 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="community-panel">
       <div class="community-header">
         <h2>Community</h2>
-        <label class="public-profile-toggle" id="public-profile-toggle" style="display:none">
-          <input type="checkbox" id="public-profile-cb" onchange="togglePublicProfile(this)">
-          <span>Public profile</span>
-        </label>
       </div>
       <div id="community-content">
         <div class="wantlist-empty"><p>No public profiles yet.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="tab-settings" class="tab-panel hidden">
+    <div class="settings-panel">
+      <h2>Settings</h2>
+      <div class="settings-section">
+        <h3>Profile</h3>
+        <div class="settings-field">
+          <label class="settings-label">Display Name</label>
+          <input class="settings-input" id="settings-name" placeholder="Your display name">
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">Bio</label>
+          <input class="settings-input" id="settings-bio" placeholder="Tell people about your collection…">
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">Profile Picture</label>
+          <div class="settings-photo-row">
+            <img class="settings-photo" id="settings-photo" src="" alt="">
+            <span class="settings-photo-hint">Photo comes from your Google account</span>
+          </div>
+        </div>
+        <button class="settings-save-btn" onclick="saveSettings()">Save Profile</button>
+      </div>
+      <div class="settings-section">
+        <h3>Privacy</h3>
+        <label class="settings-toggle">
+          <input type="checkbox" id="settings-public-cb" onchange="togglePublicProfile(this)">
+          <span>Public profile — appear in the Community tab and allow others to view your lists</span>
+        </label>
+      </div>
+      <div class="settings-section">
+        <h3>Data</h3>
+        <p class="settings-hint">Import a collection JSON file from the migration script.</p>
+        <button class="settings-import-btn" onclick="document.getElementById('import-file-input').click()">Import Collection</button>
       </div>
     </div>
   </div>
