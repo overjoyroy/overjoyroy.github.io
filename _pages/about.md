@@ -19,19 +19,21 @@ You can email me at JOR115 {at} pitt {dot} edu.
 
 <a class="btn btn--info" href="/files/academic_CV.pdf">Academic CV</a> <a class="btn btn--info" href="/files/Resume.pdf">Resume</a>
 
+<h2>Current Interests</h2>
+- Foundation models for CT and MRI
+- Foundation models for whole slide imaging
+- Cancer prognosis prediction
+- AI-assisted tumor boards
+
+<h2>Previous Research</h2>
+- Machine learning for neuroimaging
+- MRI preprocessing and image analysis
+- Cognitive and developmental neuroscience
+
 
 <h2>Outside of Work</h2>
 - Traveling
 - Trying new ramen spots around Baltimore and DC
 - Board games and video games with friends
 - Losing at fantasy football every fall
-
-
-<h2>Updates</h2>
-- [2026-02] Published a paper in NeuroImage Clinical on fMRI network analysis
-- [2025-02] Got a PS5
-- [2024-12] Defended my doctoral thesis!
-
-
-
 
