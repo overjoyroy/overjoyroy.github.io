@@ -4,7 +4,7 @@
 
 A multi-user Pokemon card collection tracker at `/pokemon/tracker/`.
 Guest-friendly — anyone can browse, search, and view public profiles without signing in.
-The old static `missing_cards.html` is **intentionally preserved** alongside this app.
+Porydex is the only Pokemon subsite kept in this repo.
 
 ## What's done
 
@@ -113,7 +113,7 @@ Documents/pokemon/
   generate_checklist.py     ← generates missing_cards.html from CSV
 
 website/
-  pokemon/missing_cards.html   ← old static checklist — keep, do not delete
-  _pages/personal.md           ← links to old app + Porydex
+  pokemon/tracker/             ← Porydex app
+  _pages/personal.md           ← links to Porydex
   _data/navigation.yml         ← has "Personal" nav entry
 ```
