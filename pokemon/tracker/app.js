@@ -533,6 +533,22 @@ async function searchCards(queryStr) {
   return cards;
 }
 
+async function searchCustomCards(nameQuery, setId = null) {
+  const sets = await fetchAllSets();
+  const customSets = sets.filter(s => s.custom && (!setId || s.id === setId));
+  const query = (nameQuery || '').toLowerCase();
+  const results = [];
+  for (const set of customSets) {
+    const cards = await fetchSetCards(set.id);
+    results.push(...cards.filter(card => {
+      if (!query) return true;
+      const haystack = `${card.name} ${card.number} ${card.language || ''} ${card.searchTerms || ''}`.toLowerCase();
+      return haystack.includes(query);
+    }));
+  }
+  return results;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // CARD TILE
 // ─────────────────────────────────────────────────────────────────
@@ -895,10 +911,20 @@ async function runFilteredSearch() {
   try {
     let cards;
     const setFilter = activeFilters.find(f => f.type === 'set');
+    const nameFilter = activeFilters.find(f => f.type === 'name');
+    const sets = await fetchAllSets();
+    const customSetIds = new Set(sets.filter(s => s.custom).map(s => s.id));
     if (setFilter && activeFilters.length === 1) {
       cards = await fetchSetCards(setFilter.value);
+    } else if (setFilter && customSetIds.has(setFilter.value)) {
+      cards = await searchCustomCards(nameFilter?.value, setFilter.value);
     } else {
       cards = await searchCards(queryStr);
+      if (!setFilter && nameFilter) {
+        const customCards = await searchCustomCards(nameFilter.value);
+        const seen = new Set(cards.map(card => card.id));
+        cards.push(...customCards.filter(card => !seen.has(card.id)));
+      }
     }
     if (seq !== searchSeq) return;
 

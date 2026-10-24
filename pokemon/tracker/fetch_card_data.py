@@ -31,6 +31,18 @@ CARDS_DIR = os.path.join(OUT_DIR, 'cards')
 SELECT_SETS = 'id,name,series,releaseDate,total,images'
 SELECT_CARDS = 'id,name,number,set,images,tcgplayer'
 
+# Sets not available from the English-focused Pokemon TCG API. Their card data
+# is maintained as static JSON in data/cards/.
+CUSTOM_SETS = [{
+    'id': 'jls2000',
+    'name': 'Japanese Lucky Stadium Promos',
+    'series': 'Japanese Promos',
+    'total': 9,
+    'releaseDate': '2000/07/01',
+    'images': {},
+    'custom': True,
+}]
+
 
 def api_get(url, retries=3):
     for attempt in range(retries):
@@ -71,7 +83,7 @@ def fetch_cards(set_id, set_name):
 def main():
     os.makedirs(CARDS_DIR, exist_ok=True)
 
-    sets = fetch_sets()
+    sets = fetch_sets() + CUSTOM_SETS
     with open(os.path.join(OUT_DIR, 'sets.json'), 'w') as f:
         json.dump(sets, f, separators=(',', ':'))
     print(f'Wrote data/sets.json ({len(sets)} sets)')
