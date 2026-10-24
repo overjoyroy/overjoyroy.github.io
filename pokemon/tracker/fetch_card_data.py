@@ -41,6 +41,14 @@ CUSTOM_SETS = [{
     'releaseDate': '2000/07/01',
     'images': {},
     'custom': True,
+}, {
+    'id': 'jbac',
+    'name': 'Japanese Banned & Censored Artwork',
+    'series': 'Japanese Promos',
+    'total': 11,
+    'releaseDate': '1996/10/20',
+    'images': {},
+    'custom': True,
 }]
 
 
