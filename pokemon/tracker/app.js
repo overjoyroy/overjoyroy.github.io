@@ -87,7 +87,12 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function fmt$(v) { return v != null ? `$${Number(v).toFixed(2)}` : '—'; }
+function fmtMoney(v, currency = 'USD') {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(v));
+}
+
+function fmt$(v) { return fmtMoney(v, 'USD'); }
 
 function ebayUrl(card) {
   const q = `pokemon ${card.name} ${card.set?.name || ''} ${card.number}`;
@@ -100,6 +105,24 @@ function bestPrice(prices) {
   for (const f of [...order, ...Object.keys(prices)]) {
     if (prices[f]?.market) return prices[f].market;
   }
+  return null;
+}
+
+function cardPriceInfo(card) {
+  const usd = bestPrice(card.tcgplayer?.prices);
+  if (usd != null) return {
+    value: usd,
+    currency: 'USD',
+    source: card.priceSource || 'TCGplayer',
+    updatedAt: card.priceUpdatedAt || card.tcgplayer?.updatedAt || null,
+  };
+  const eur = card.cardmarket?.market ?? card.cardmarket?.trend ?? card.cardmarket?.avg7 ?? null;
+  if (eur != null) return {
+    value: eur,
+    currency: 'EUR',
+    source: 'Cardmarket',
+    updatedAt: card.cardmarket?.updatedAt || null,
+  };
   return null;
 }
 
@@ -494,7 +517,9 @@ async function fetchAllSets() {
 }
 
 async function fetchSetCards(setId) {
-  const key = `cards_${setId}`;
+  // Bump the cache namespace whenever the bundled catalog is refreshed so a
+  // returning visitor does not keep stale cards/prices in IndexedDB.
+  const key = `cards_v4_${setId}`;
   const hit = await cacheGet(key);
   if (hit) return hit;
   try {
@@ -558,7 +583,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
   const coll   = collectionOverride || collection;
   const owned  = !!coll[card.id];
   const imgSrc = card.images?.small || '';
-  const price  = bestPrice(card.tcgplayer?.prices);
+  const price  = cardPriceInfo(card);
   const sel    = selectable && selectedCards.has(card.id);
   const img    = imgSrc
     ? `<img class="card-img" src="${esc(imgSrc)}" alt="${esc(card.name)}" loading="lazy">`
@@ -577,7 +602,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
   </div>
   <span class="card-name">${esc(card.name)}</span>
   <span class="card-num">${esc(card.number)}</span>
-  ${price ? `<span class="card-price">~${fmt$(price)}</span>` : ''}
+  ${price ? `<span class="card-price">~${fmtMoney(price.value, price.currency)}</span>` : ''}
   ${showSet ? `<span class="card-set-badge">${esc(card.set?.name || '')}</span>` : ''}
 </div>`;
 }
@@ -1331,6 +1356,7 @@ window.openModal = function(cardId) {
 
   const prices   = card.tcgplayer?.prices || {};
   const finishes = Object.keys(prices).filter(f => Object.values(prices[f] || {}).some(v => v != null));
+  const cardmarket = card.cardmarket || {};
   document.getElementById('modal-prices').innerHTML = finishes.length
     ? `<tr><th>Finish</th><th>Low</th><th>Market</th><th>High</th></tr>` +
       finishes.map(f => {
@@ -1338,7 +1364,16 @@ window.openModal = function(cardId) {
         return `<tr><td class="finish-label">${esc(FINISH_LABELS[f] || f)}</td>
   <td>${fmt$(p.low)}</td><td>${fmt$(p.market)}</td><td>${fmt$(p.high)}</td></tr>`;
       }).join('')
-    : `<tr><td colspan="4" style="color:#bbb;font-size:.78rem">No price data available</td></tr>`;
+    : (cardPriceInfo(card)?.currency === 'EUR'
+      ? `<tr><th>Market</th><th>Low</th><th>Trend</th><th>7-day avg.</th></tr>
+        <tr><td>Cardmarket</td><td>${fmtMoney(cardmarket.low, 'EUR')}</td><td>${fmtMoney(cardmarket.trend, 'EUR')}</td><td>${fmtMoney(cardmarket.avg7, 'EUR')}</td></tr>`
+      : `<tr><td colspan="4" style="color:#bbb;font-size:.78rem">No price data available</td></tr>`);
+
+  const priceInfo = cardPriceInfo(card);
+  const priceMeta = document.getElementById('modal-price-meta');
+  priceMeta.textContent = priceInfo
+    ? `${priceInfo.source}${priceInfo.updatedAt ? ` · updated ${priceInfo.updatedAt}` : ''}`
+    : 'No market price is currently available for this printing.';
 
   syncModalBtn(!!collection[cardId]);
   document.getElementById('modal-bg').classList.add('open');
@@ -1746,6 +1781,25 @@ document.getElementById('copy-profile-link').addEventListener('click', () => {
 });
 
 window.addEventListener('hashchange', handleRoute);
+
+async function loadPricingMeta() {
+  const el = document.getElementById('price-data-updated');
+  if (!el) return;
+  try {
+    const response = await fetch('./data/pricing-meta.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error('missing metadata');
+    const meta = await response.json();
+    const refreshed = new Date(meta.generatedAt);
+    const date = Number.isNaN(refreshed.getTime())
+      ? meta.generatedAt
+      : refreshed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    el.innerHTML = `<strong>Dataset refreshed:</strong> ${esc(date)} · ${Number(meta.cardsWithPrices || 0).toLocaleString()} of ${Number(meta.totalCards || 0).toLocaleString()} cards have a market price.`;
+  } catch (_) {
+    el.innerHTML = '<strong>Dataset refreshed:</strong> date unavailable.';
+  }
+}
+
+loadPricingMeta();
 
 // ─────────────────────────────────────────────────────────────────
 // TAB SWITCHING

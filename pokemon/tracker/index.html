@@ -250,6 +250,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .price-table th{text-align:left;color:#bbb;font-weight:600;padding:3px 5px 3px 0;border-bottom:1px solid #f0f0f0}
 .price-table td{padding:3px 5px 3px 0}
 .price-table tr:not(:last-child) td{border-bottom:1px solid #f8f8f8}
+.price-meta{font-size:.68rem;color:#aaa;line-height:1.4;margin:-5px 0 12px}
+.price-methodology{max-width:760px;margin:22px auto 8px;background:#fff;border:1px solid #e7e7ec;border-radius:12px;box-shadow:var(--shadow);font-size:.78rem;color:#666}
+.price-methodology summary{cursor:pointer;padding:13px 16px;font-weight:700;color:var(--dark)}
+.price-methodology-body{padding:0 16px 15px;line-height:1.55}
+.price-methodology-body p+p{margin-top:8px}
+.price-methodology-body strong{color:#444}
 .finish-label{font-weight:600;color:#555}
 .modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .btn{padding:8px 15px;border-radius:8px;font-size:.8rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;display:inline-block;text-align:center}
@@ -325,6 +331,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <p>Type a name or browse sets to find cards.</p>
         </div>
       </div>
+      <details class="price-methodology">
+        <summary>How card prices work</summary>
+        <div class="price-methodology-body">
+          <p><strong>Displayed value:</strong> the current ungraded market estimate for the first available finish. TCGplayer market prices in USD are preferred; Cardmarket trend prices in EUR are used when no USD listing exists. Newly released sets may temporarily use a Scrydex raw-market estimate.</p>
+          <p><strong>Condition and finish:</strong> values are marketplace estimates, not guaranteed sale prices. Condition, edition, language, foil treatment, grading, and shipping can change the value substantially.</p>
+          <p><strong>Coverage:</strong> cards without a comparable marketplace listing show no price. Japanese promos and extremely scarce cards are intentionally left unpriced unless a defensible raw-card market estimate is available.</p>
+          <p id="price-data-updated"><strong>Dataset refreshed:</strong> checking…</p>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -473,6 +488,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <h2 id="modal-name"></h2>
         <div class="modal-set-line" id="modal-set-line"></div>
         <table class="price-table" id="modal-prices"></table>
+        <div class="price-meta" id="modal-price-meta"></div>
         <div class="modal-actions">
           <a class="btn btn-ebay" id="modal-ebay" href="#" target="_blank" rel="noopener">Search eBay</a>
           <a class="btn btn-bulba" id="modal-bulba" href="#" target="_blank" rel="noopener">Bulbapedia</a>
