@@ -907,7 +907,7 @@ window.showActionListPicker = function() {
   if (selectedCards.size && !selectedSets.size) {
     const cards = [...selectedCards].map(cardId => cardDataMap[cardId]).filter(Boolean);
     picker.classList.add('checklist-picker');
-    picker.innerHTML = `<div class="list-check-picker-title">Choose lists for ${cards.length} cards</div>
+    picker.innerHTML = `<div class="list-check-picker-header"><div class="list-check-picker-title">Choose lists for ${cards.length} cards</div><button class="list-check-picker-close" onclick="closeListPicker()" aria-label="Close list picker">×</button></div>
       <div class="list-check-picker-help">Checked adds every selected card. Unchecked removes them. A dash means only some are currently included.</div>
       <div class="list-check-picker-options">${listArr.map(([listId, info]) => {
         let included = 0;
@@ -982,6 +982,11 @@ window.saveBulkListMembership = async function() {
   exitSelectMode();
 };
 
+window.closeListPicker = function() {
+  document.getElementById('action-list-picker')?.classList.add('hidden');
+  pendingSingleCardId = null;
+};
+
 window.showModalListPicker = function() {
   if (!modalCardId || !currentUser) return;
   pendingSingleCardId = modalCardId;
@@ -991,7 +996,7 @@ window.showModalListPicker = function() {
   const card = cardDataMap[modalCardId];
   const { directByList, setLists } = cardListMembership(modalCardId, card?.set?.id || '');
   picker.classList.add('checklist-picker');
-  picker.innerHTML = `<div class="list-check-picker-title">Choose lists</div>
+  picker.innerHTML = `<div class="list-check-picker-header"><div class="list-check-picker-title">Choose lists</div><button class="list-check-picker-close" onclick="closeListPicker()" aria-label="Close list picker">×</button></div>
     <div class="list-check-picker-help">Check lists to add this card; uncheck them to remove it.</div>
     <div class="list-check-picker-options">${listArr.map(([listId, info]) => {
       const fromSet = setLists.has(listId);
