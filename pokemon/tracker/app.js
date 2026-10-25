@@ -95,8 +95,13 @@ function fmtMoney(v, currency = 'USD') {
 function fmt$(v) { return fmtMoney(v, 'USD'); }
 
 function ebayUrl(card) {
-  const q = `pokemon ${card.name} ${card.set?.name || ''} ${card.number}`;
+  const q = `pokemon ${card.name} ${card.set?.name || ''} ${card.number} ${card.language || ''}`.trim();
   return `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}`;
+}
+
+function ebaySoldUrl(card) {
+  const q = `pokemon ${card.name} ${card.set?.name || ''} ${card.number} ${card.language || ''} -PSA -CGC -BGS`.trim();
+  return `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_Sold=1&LH_Complete=1&_sop=13`;
 }
 
 function bestPrice(prices) {
@@ -1349,6 +1354,7 @@ window.openModal = function(cardId) {
   document.getElementById('modal-name').textContent     = card.name;
   document.getElementById('modal-set-line').textContent = `${card.set?.name || ''} · #${card.number}`;
   document.getElementById('modal-ebay').href            = ebayUrl(card);
+  document.getElementById('modal-ebay-sold').href       = ebaySoldUrl(card);
 
   const bulbaEl = document.getElementById('modal-bulba');
   if (card.bulbapedia) { bulbaEl.href = card.bulbapedia; bulbaEl.style.display = ''; }
