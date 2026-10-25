@@ -2165,7 +2165,7 @@ window.viewProfileMissing = async function(uid) {
     }
 
     let html = `<div class="list-detail-header">
-  <button class="back-btn" onclick="location.hash='#/profile/${esc(uid)}'">← Back</button>
+  <button class="back-btn" onclick="backToProfileLists('${esc(uid)}')">← Back</button>
   <span class="list-detail-name">All Missing Cards</span>
   <span class="list-progress" id="profile-missing-total" style="color:#888">Loading…</span>
 </div>`;
@@ -2233,6 +2233,12 @@ window.viewProfileMissing = async function(uid) {
   } catch (e) {
     listsEl.innerHTML = `<div class="wantlist-empty"><p>Failed to load: ${esc(e.message)}</p></div>`;
   }
+};
+
+window.backToProfileLists = function(uid) {
+  // Missing Cards is an in-place profile view, so its URL is already the
+  // profile URL and assigning the same hash would not trigger navigation.
+  renderProfile(uid, null);
 };
 
 async function loadProfileListCards(listId, wlData, coll) {
