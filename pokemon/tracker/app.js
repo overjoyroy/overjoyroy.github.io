@@ -586,7 +586,7 @@ function cameoKey(value) {
 
 async function loadCameoIndex() {
   if (!cameoIndex) {
-    const response = await fetch('./data/cameos.json');
+    const response = await fetch('./data/cameos.json?v=20261025', { cache: 'no-store' });
     if (!response.ok) throw new Error('Cameo index is unavailable.');
     cameoIndex = await response.json();
   }
