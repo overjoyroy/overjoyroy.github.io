@@ -528,7 +528,7 @@ async function fetchAllSets() {
 async function fetchSetCards(setId) {
   // Bump the cache namespace whenever the bundled catalog is refreshed so a
   // returning visitor does not keep stale cards/prices in IndexedDB.
-  const key = `cards_v4_${setId}`;
+  const key = `cards_v5_${setId}`;
   const hit = await cacheGet(key);
   if (hit) return hit;
   try {
