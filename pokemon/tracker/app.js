@@ -649,6 +649,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
     : `openModal('${esc(card.id)}')`;
 
   const overlayText = sel ? 'Selected' : (owned ? '' : (selectable || (!readonly && !isGuest) ? 'Select' : 'View details'));
+  const cameoNotes = (card._cameoNotes || []).filter(Boolean).join('; ');
 
   return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
   ${owned ? '<div class="owned-badge">Owned</div>' : ''}
@@ -658,6 +659,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
   </div>
   <span class="card-name">${esc(card.name)}</span>
   <span class="card-num">${esc(card.number)}</span>
+  ${cameoNotes ? `<span class="cameo-note" title="${esc(cameoNotes)}">Note: ${esc(cameoNotes)}</span>` : ''}
   ${price ? `<span class="card-price">~${fmtMoney(price.value, price.currency)}</span>` : ''}
   ${showSet ? `<span class="card-set-badge">${esc(card.set?.name || '')}</span>` : ''}
 </div>`;
@@ -1457,9 +1459,9 @@ window.openModal = function(cardId) {
   document.getElementById('modal-set-line').textContent = `${card.set?.name || ''} · #${card.number}`;
   const cameoEl = document.getElementById('modal-cameo');
   if (card._cameoPokemon) {
-    const notes = card._cameoNotes?.length ? ` · ${card._cameoNotes.join(', ')}` : '';
-    const pending = card._cameoUnmatched ? ' · main catalog match pending' : '';
-    cameoEl.textContent = `${card._cameoPokemon} appears in this card's artwork${notes}${pending}.`;
+    const notes = card._cameoNotes?.length ? ` Notes: ${card._cameoNotes.join('; ')}.` : '';
+    const pending = card._cameoUnmatched ? ' Main catalog match pending.' : '';
+    cameoEl.textContent = `${card._cameoPokemon} appears in this card's artwork.${notes}${pending}`;
     cameoEl.classList.remove('hidden');
   } else {
     cameoEl.classList.add('hidden');

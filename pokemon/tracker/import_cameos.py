@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 from collections import defaultdict
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 import glob
 import hashlib
 import json
@@ -46,9 +47,33 @@ SET_ALIASES = {
     "XY Promos": "XY Black Star Promos",
 }
 
+# The catalog stores modern artwork galleries as their own sets even though
+# the workbook labels them with the parent expansion name.
+NUMBER_PREFIX_SET_SUFFIXES = {
+    "GG": " Galarian Gallery",
+    "TG": " Trainer Gallery",
+}
+
 
 def normalize(value):
     return re.sub(r"[^a-z0-9]", "", str(value).casefold())
+
+
+def card_names_match(workbook_name, catalog_name):
+    """Allow harmless naming variants without accepting a same-number card."""
+    workbook = normalize(workbook_name)
+    catalog = normalize(catalog_name)
+    if workbook == catalog:
+        return True
+    # The workbook sometimes adds a character/person qualifier in brackets,
+    # while older catalog names include a longer card-series prefix.
+    workbook_base = normalize(re.sub(r"\s*\[[^]]+\]\s*$", "", str(workbook_name)))
+    if workbook_base == catalog:
+        return True
+    if min(len(workbook_base), len(catalog)) >= 6 and (
+            workbook_base in catalog or catalog in workbook_base):
+        return True
+    return SequenceMatcher(None, workbook_base, catalog).ratio() >= 0.88
 
 
 def normalize_number(value):
@@ -61,10 +86,12 @@ def normalize_number(value):
 def number_keys(value):
     """Return exact and prefix-free forms (SM078 and 78, for example)."""
     exact = normalize_number(value)
-    keys = {exact}
+    keys = [exact]
     suffix = re.search(r"([0-9]+[a-z]?)$", exact)
     if suffix:
-        keys.add(suffix.group(1).lstrip("0") or "0")
+        prefix_free = suffix.group(1).lstrip("0") or "0"
+        if prefix_free != exact:
+            keys.append(prefix_free)
     return keys
 
 
@@ -142,13 +169,15 @@ def read_cameos(path):
 def local_catalog():
     sets = json.load(open(os.path.join(DATA, "sets.json"), encoding="utf-8"))
     sets_by_name = {normalize(item["name"]): item for item in sets}
-    cards = {}
+    cards = defaultdict(list)
     for filename in glob.glob(os.path.join(CARDS, "*.json")):
         for card in json.load(open(filename, encoding="utf-8")):
             set_id = card.get("set", {}).get("id")
             if set_id:
                 for number_key in number_keys(card.get("number", "")):
-                    cards[(set_id, number_key)] = card
+                    candidates = cards[(set_id, number_key)]
+                    if not any(candidate["id"] == card["id"] for candidate in candidates):
+                        candidates.append(card)
     return sets_by_name, cards
 
 
@@ -170,11 +199,21 @@ def main():
     for entry in read_cameos(input_path):
         set_key = normalize(entry["setName"])
         set_info = sets_by_name.get(aliases.get(set_key, set_key))
+        number_prefix = re.match(r"^([A-Za-z]+)", str(entry["number"]).strip())
+        gallery_suffix = NUMBER_PREFIX_SET_SUFFIXES.get(
+            number_prefix.group(1).upper() if number_prefix else "")
+        if gallery_suffix:
+            gallery_set = sets_by_name.get(normalize(entry["setName"] + gallery_suffix))
+            if gallery_set:
+                set_info = gallery_set
         card = None
         if set_info:
             for number_key in number_keys(entry["number"]):
-                card = cards.get((set_info["id"], number_key))
-                if card:
+                candidates = cards.get((set_info["id"], number_key), [])
+                name_matches = [candidate for candidate in candidates
+                                if card_names_match(entry["cardName"], candidate.get("name", ""))]
+                if name_matches:
+                    card = name_matches[0]
                     break
         if not card:
             unmatched.append(entry)
