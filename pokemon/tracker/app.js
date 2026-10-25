@@ -57,6 +57,7 @@ let collUnsub      = null;
 let wlUnsub        = null;
 
 let allSets        = null;
+let cameoIndex     = null;
 let cardDataMap    = {};     // { cardId: apiCardObject } for modal lookups
 
 let activeTab      = 'search';
@@ -579,6 +580,47 @@ async function searchCustomCards(nameQuery, setId = null) {
   return results;
 }
 
+function cameoKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+async function loadCameoIndex() {
+  if (!cameoIndex) {
+    const response = await fetch('./data/cameos.json');
+    if (!response.ok) throw new Error('Cameo index is unavailable.');
+    cameoIndex = await response.json();
+  }
+  return cameoIndex;
+}
+
+async function fetchCameoCards(pokemonName, setId = null) {
+  try {
+    await loadCameoIndex();
+  } catch (_) {
+    return [];
+  }
+  const group = cameoIndex.pokemon?.[cameoKey(pokemonName)];
+  if (!group) return [];
+  const entries = setId ? group.cards.filter(item => item.setId === setId) : group.cards;
+  const bySet = {};
+  for (const entry of entries) (bySet[entry.setId] ||= []).push(entry);
+  const cardsById = new Map();
+  await Promise.all(Object.entries(bySet).map(async ([cameoSetId, setEntries]) => {
+    const cards = await fetchSetCards(cameoSetId);
+    const entryById = new Map(setEntries.map(item => [item.id, item]));
+    for (const card of cards) {
+      const cameo = entryById.get(card.id);
+      if (!cameo) continue;
+      cardsById.set(card.id, {
+        ...card,
+        _cameoPokemon: group.name,
+        _cameoNotes: cameo.notes || [],
+      });
+    }
+  }));
+  return entries.map(entry => cardsById.get(entry.id)).filter(Boolean);
+}
+
 // ─────────────────────────────────────────────────────────────────
 // CARD TILE
 // ─────────────────────────────────────────────────────────────────
@@ -602,6 +644,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
 
   return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
   ${owned ? '<div class="owned-badge">Owned</div>' : ''}
+  ${card._cameoPokemon ? `<div class="cameo-badge">Cameo: ${esc(card._cameoPokemon)}</div>` : ''}
   <div class="card-img-wrap" onclick="${clickAction}">
     ${img}<div class="card-overlay">${overlayText}</div>
   </div>
@@ -925,6 +968,8 @@ document.getElementById('search-input')?.addEventListener('input', e => {
   }, 400);
 });
 
+document.getElementById('include-cameos')?.addEventListener('change', () => runFilteredSearch());
+
 async function runFilteredSearch() {
   const seq = ++searchSeq;
   const el = document.getElementById('search-results');
@@ -955,6 +1000,11 @@ async function runFilteredSearch() {
         const seen = new Set(cards.map(card => card.id));
         cards.push(...customCards.filter(card => !seen.has(card.id)));
       }
+    }
+    if (nameFilter && document.getElementById('include-cameos')?.checked) {
+      const cameos = await fetchCameoCards(nameFilter.value, setFilter?.value || null);
+      const seen = new Set(cards.map(card => card.id));
+      cards.push(...cameos.filter(card => !seen.has(card.id)));
     }
     if (seq !== searchSeq) return;
 
@@ -1353,6 +1403,15 @@ window.openModal = function(cardId) {
 
   document.getElementById('modal-name').textContent     = card.name;
   document.getElementById('modal-set-line').textContent = `${card.set?.name || ''} · #${card.number}`;
+  const cameoEl = document.getElementById('modal-cameo');
+  if (card._cameoPokemon) {
+    const notes = card._cameoNotes?.length ? ` · ${card._cameoNotes.join(', ')}` : '';
+    cameoEl.textContent = `${card._cameoPokemon} appears in this card's artwork${notes}.`;
+    cameoEl.classList.remove('hidden');
+  } else {
+    cameoEl.classList.add('hidden');
+    cameoEl.textContent = '';
+  }
   document.getElementById('modal-ebay').href            = ebayUrl(card);
   document.getElementById('modal-ebay-sold').href       = ebaySoldUrl(card);
 
@@ -1503,10 +1562,73 @@ async function renderSetDetail(setId) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// CAMEO DIRECTORY
+// ─────────────────────────────────────────────────────────────────
+
+window.filterCameosPage = function(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('#cameos-content .cameo-pokemon-card').forEach(card => {
+    card.classList.toggle('hidden', q && !card.dataset.search.includes(q));
+  });
+  document.querySelectorAll('#cameos-content .cameo-generation-group').forEach(group => {
+    group.classList.toggle('hidden', !group.querySelector('.cameo-pokemon-card:not(.hidden)'));
+  });
+};
+
+async function renderCameosPage() {
+  const el = document.getElementById('cameos-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cameos…</div>';
+  try {
+    const index = await loadCameoIndex();
+    const entries = Object.entries(index.pokemon).sort((a, b) =>
+      Number(a[1].dex || 9999) - Number(b[1].dex || 9999) || a[1].name.localeCompare(b[1].name)
+    );
+    const byGeneration = {};
+    for (const entry of entries) (byGeneration[entry[1].generation || 'Other'] ||= []).push(entry);
+    el.innerHTML = `<div class="cameo-directory-header">
+      <div><h2>Cameo Pokémon</h2><p>${entries.length} Pokémon · ${Number(index.meta?.matchedEntries || 0).toLocaleString()} matched card appearances</p></div>
+      <input class="cameo-filter" type="search" placeholder="Find a Pokémon…" oninput="filterCameosPage(this.value)">
+    </div>` + Object.entries(byGeneration).map(([generation, pokemon]) => `
+      <section class="cameo-generation-group">
+        <h3 class="cameo-generation">Generation ${esc(generation)} <span class="era-count">(${pokemon.length})</span></h3>
+        <div class="cameo-directory-grid">
+          ${pokemon.map(([key, group]) => `<a class="cameo-pokemon-card" href="#/cameos/${encodeURIComponent(key)}" data-search="${esc(`${group.name} ${group.dex || ''}`.toLowerCase())}">
+            <div><div class="cameo-pokemon-name">${esc(group.name)}</div><div class="cameo-pokemon-dex">${group.dex ? `#${esc(group.dex)}` : ''}</div></div>
+            <span class="cameo-count">${group.cards.length}</span>
+          </a>`).join('')}
+        </div>
+      </section>`).join('') + `<p class="cameo-detail-note">Data from RotomAmiti’s Cameo Pokémon Card Database. Counts include only cards currently matched to the Porydex catalog.</p>`;
+  } catch (error) {
+    el.innerHTML = `<div class="search-empty"><h3>Cameos unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+async function renderCameoDetail(key) {
+  const el = document.getElementById('cameos-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cameo cards…</div>';
+  try {
+    const index = await loadCameoIndex();
+    const group = index.pokemon?.[cameoKey(key)];
+    if (!group) throw new Error('This Pokémon was not found in the cameo index.');
+    const cards = await fetchCameoCards(group.name);
+    el.innerHTML = `<div class="set-detail-header">
+      <button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
+      <div class="set-detail-title"><h2>${esc(group.name)} cameos</h2>
+      <p>${cards.length} matched card appearance${cards.length === 1 ? '' : 's'}</p></div>
+    </div>
+    <p class="cameo-detail-note">These are cards where ${esc(group.name)} appears in the artwork but is not the named subject of the card.</p>
+    <div class="card-grid">${cards.map(card => cardTile(card, { readonly: true, showSet: true })).join('')}</div>`;
+  } catch (error) {
+    el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
+      <div class="search-empty"><h3>Cameos unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // PROFILE VIEW + ROUTING
 // ─────────────────────────────────────────────────────────────────
 
-const VALID_TABS = ['search', 'sets', 'lists', 'community', 'settings'];
+const VALID_TABS = ['search', 'sets', 'cameos', 'lists', 'community', 'settings'];
 
 function parseRoute() {
   const hash = location.hash.slice(1);
@@ -1514,6 +1636,8 @@ function parseRoute() {
   if (profileMatch) return { type: 'profile', uid: profileMatch[1], listId: profileMatch[2] || null };
   const setMatch = hash.match(/^\/sets\/([^/]+)$/);
   if (setMatch) return { type: 'set', setId: decodeURIComponent(setMatch[1]) };
+  const cameoMatch = hash.match(/^\/cameos\/([^/]+)$/);
+  if (cameoMatch) return { type: 'cameo', pokemon: decodeURIComponent(cameoMatch[1]) };
   const tabMatch = hash.match(/^\/(\w+)$/);
   if (tabMatch && VALID_TABS.includes(tabMatch[1])) return { type: 'tab', tab: tabMatch[1] };
   if (hash === '/welcome' || hash === '/home' || hash === '/' || hash === '') return { type: 'home' };
@@ -1528,6 +1652,10 @@ function handleRoute() {
     hideProfileView();
     switchTab('sets', true);
     renderSetDetail(activeRoute.setId);
+  } else if (activeRoute.type === 'cameo') {
+    hideProfileView();
+    switchTab('cameos', true);
+    renderCameoDetail(activeRoute.pokemon);
   } else if (activeRoute.type === 'tab') {
     hideProfileView();
     switchTab(activeRoute.tab, true);
@@ -1902,6 +2030,7 @@ window.switchTab = async function switchTab(tab, fromRouter) {
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   if (tab === 'lists') await renderLists();
   if (tab === 'sets' && activeRoute?.type !== 'set') await renderSetsPage();
+  if (tab === 'cameos' && activeRoute?.type !== 'cameo') await renderCameosPage();
   if (tab === 'community') await renderCommunity();
   if (tab === 'settings') await loadSettings();
   if (tab === 'search' && addingToList) {

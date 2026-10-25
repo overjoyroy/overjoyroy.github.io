@@ -42,6 +42,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .filter-actions{display:flex;gap:6px;flex-wrap:wrap}
 .filter-btn{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:12px;font-size:.72rem;cursor:pointer;transition:all .15s}
 .filter-btn:hover{background:#e0e0e5}
+.cameo-toggle{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:#666;padding:4px 8px;cursor:pointer}
+.cameo-toggle input{accent-color:var(--blue)}
+.cameo-credit{font-size:.66rem;color:#aaa;margin:-5px 0 12px}
 .search-results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px}
 .search-empty{text-align:center;padding:60px 20px;color:#bbb;grid-column:1/-1}
 .search-empty h3{margin-bottom:8px;font-size:1rem}
@@ -72,6 +75,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.15)}
 .card-tile.owned{opacity:.55;outline:2px solid var(--green)}
 .owned-badge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(46,204,113,.85);color:#fff;font-size:.7rem;font-weight:700;padding:3px 10px;border-radius:10px;z-index:3;pointer-events:none;text-transform:uppercase;letter-spacing:.5px}
+.cameo-badge{position:absolute;top:5px;left:5px;max-width:calc(100% - 10px);background:rgba(52,152,219,.92);color:#fff;font-size:.58rem;font-weight:700;padding:3px 6px;border-radius:8px;z-index:4;line-height:1.2}
 .card-tile.selected{outline:2px solid var(--blue);opacity:1}
 .card-tile.hidden{display:none!important}
 .card-img-wrap{position:relative;cursor:pointer;border-radius:6px;overflow:hidden}
@@ -105,6 +109,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .set-detail-title p{font-size:.74rem;color:#999;margin-top:2px}
 .set-back-btn{border:0;background:#eeeef3;color:#555;border-radius:12px;padding:6px 11px;cursor:pointer;font-size:.74rem}
 .set-back-btn:hover{background:#dedee6}
+
+/* ── Cameos tab ── */
+.cameos-panel{padding:16px;max-width:1100px;margin:0 auto}
+.cameo-directory-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cameo-directory-header h2{font-size:1.05rem}
+.cameo-directory-header p{font-size:.76rem;color:#999;margin-top:3px}
+.cameo-filter{width:min(320px,100%);padding:8px 12px;border:1px solid #ddd;border-radius:16px;font-size:.8rem;outline:none}
+.cameo-filter:focus{border-color:#999}
+.cameo-generation{margin:20px 0 8px;font-size:.85rem;color:#777;border-bottom:1px solid #e8e8ec;padding-bottom:5px}
+.cameo-directory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px}
+.cameo-pokemon-card{background:#fff;border-radius:9px;box-shadow:var(--shadow);padding:10px 12px;text-decoration:none;color:var(--dark);display:flex;align-items:center;justify-content:space-between;gap:8px;transition:box-shadow .15s,transform .15s}
+.cameo-pokemon-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.15);transform:translateY(-1px)}
+.cameo-pokemon-name{font-size:.76rem;font-weight:700}
+.cameo-pokemon-dex{font-size:.62rem;color:#aaa;margin-top:2px}
+.cameo-count{background:#eef7fc;color:#287caf;font-size:.64rem;font-weight:700;padding:3px 7px;border-radius:10px;white-space:nowrap}
+.cameo-detail-note{font-size:.7rem;color:#999;margin:4px 0 8px}
 
 
 /* ── My Lists tab ── */
@@ -267,6 +287,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .modal-details{flex:1;min-width:150px}
 .modal-details h2{font-size:1rem;margin-bottom:3px}
 .modal-set-line{font-size:.77rem;color:#aaa;margin-bottom:10px}
+.modal-cameo{font-size:.72rem;color:#287caf;background:#eef7fc;border-radius:7px;padding:6px 8px;margin:-4px 0 10px;line-height:1.35}
 .price-table{width:100%;border-collapse:collapse;font-size:.75rem;margin-bottom:12px}
 .price-table th{text-align:left;color:#bbb;font-weight:600;padding:3px 5px 3px 0;border-bottom:1px solid #f0f0f0}
 .price-table td{padding:3px 5px 3px 0}
@@ -320,6 +341,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button class="tab-btn" data-tab="home">Home</button>
       <button class="tab-btn" data-tab="search">Search</button>
       <button class="tab-btn" data-tab="sets">Sets</button>
+      <button class="tab-btn" data-tab="cameos">Cameos</button>
       <button class="tab-btn" data-tab="lists">My Lists</button>
       <button class="tab-btn" data-tab="community">Community</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
@@ -344,8 +366,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <div id="active-filters"></div>
         <div class="filter-actions">
           <button class="filter-btn" onclick="showSetBrowser()">Browse Sets</button>
+          <label class="cameo-toggle"><input type="checkbox" id="include-cameos" checked> Include cameo appearances</label>
         </div>
       </div>
+      <div class="cameo-credit">Cameo data from RotomAmiti’s Cameo Pokémon Card Database.</div>
       <div id="set-browser" class="hidden"></div>
       <div class="search-results-grid" id="search-results">
         <div class="search-empty">
@@ -369,6 +393,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div id="tab-sets" class="tab-panel hidden">
     <div class="sets-panel" id="sets-content">
       <div class="loading"><div class="spinner"></div>Loading sets…</div>
+    </div>
+  </div>
+
+  <!-- CAMEOS -->
+  <div id="tab-cameos" class="tab-panel hidden">
+    <div class="cameos-panel" id="cameos-content">
+      <div class="loading"><div class="spinner"></div>Loading cameos…</div>
     </div>
   </div>
 
@@ -516,6 +547,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <div class="modal-details">
         <h2 id="modal-name"></h2>
         <div class="modal-set-line" id="modal-set-line"></div>
+        <div class="modal-cameo hidden" id="modal-cameo"></div>
         <table class="price-table" id="modal-prices"></table>
         <div class="price-meta" id="modal-price-meta"></div>
         <div class="modal-actions">
