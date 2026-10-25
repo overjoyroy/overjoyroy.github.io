@@ -232,6 +232,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .community-header h2{font-size:.95rem;font-weight:700}
 .public-profile-toggle{font-size:.76rem;color:#555;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
 .public-profile-toggle input{accent-color:var(--green)}
+
+/* ── About ── */
+.about-panel{max-width:820px;margin:0 auto;padding:22px 16px 40px}
+.about-hero{background:var(--dark);color:#fff;border-radius:16px;padding:24px;margin-bottom:16px;box-shadow:var(--shadow)}
+.about-hero h2{font-size:1.35rem;margin-bottom:9px}
+.about-hero p{font-size:.86rem;line-height:1.65;color:rgba(255,255,255,.78)}
+.about-section{background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:12px;box-shadow:var(--shadow)}
+.about-section h3{font-size:.93rem;color:var(--dark);margin-bottom:8px}
+.about-section p,.about-section li{font-size:.8rem;color:#666;line-height:1.62}
+.about-section p+p{margin-top:8px}
+.about-section ul{padding-left:20px;margin-top:7px}
+.about-section li+li{margin-top:5px}
+.about-note{border-left:4px solid var(--blue)}
 .friend-card{background:#fff;border-radius:10px;padding:13px;margin-bottom:10px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);cursor:pointer;transition:box-shadow .15s}
 .friend-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.14)}
 .friend-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#ddd;flex-shrink:0}
@@ -377,6 +390,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button class="tab-btn" data-tab="cameos">Cameos</button>
       <button class="tab-btn" data-tab="lists">My Lists</button>
       <button class="tab-btn" data-tab="community">Community</button>
+      <button class="tab-btn" data-tab="about">About</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
     <div class="auth-info">
@@ -403,7 +417,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <label class="cameo-toggle"><input type="checkbox" id="include-cameos" checked> Include cameo appearances</label>
         </div>
       </div>
-      <div class="cameo-credit">Cameo data from RotomAmiti’s Cameo Pokémon Card Database.</div>
+      <div class="cameo-credit">Cameo data from RotomAmiti’s community spreadsheet—thank you for compiling and sharing it.</div>
       <div id="set-browser" class="hidden"></div>
       <div class="search-results-grid" id="search-results">
         <div class="search-empty">
@@ -417,7 +431,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <p><strong>Displayed value:</strong> the current ungraded market estimate for the first available finish. TCGplayer market prices in USD are preferred; Cardmarket trend prices in EUR are used when no USD listing exists. Newly released sets may temporarily use a Scrydex raw-market estimate.</p>
           <p><strong>Condition and finish:</strong> values are marketplace estimates, not guaranteed sale prices. Condition, edition, language, foil treatment, grading, and shipping can change the value substantially.</p>
           <p><strong>Coverage:</strong> cards without a comparable marketplace listing show no price. Japanese promos and extremely scarce cards are intentionally left unpriced unless a defensible raw-card market estimate is available.</p>
-          <p id="price-data-updated"><strong>Dataset refreshed:</strong> checking…</p>
+          <p data-price-updated><strong>Dataset refreshed:</strong> checking…</p>
         </div>
       </details>
     </div>
@@ -464,6 +478,75 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <div class="wantlist-empty"><p>No public profiles yet.</p></div>
       </div>
     </div>
+  </div>
+
+  <!-- ABOUT -->
+  <div id="tab-about" class="tab-panel hidden">
+    <main class="about-panel">
+      <section class="about-hero">
+        <h2>About Porydex</h2>
+        <p>Porydex began as a simple way for Joy to finish the vintage Pokémon card collection he started as a kid. Card shows are more fun and interesting than buying everything online, so he wanted one quick place to check what he owns, what he still needs, and roughly what a fair price looks like while standing at a vendor’s table.</p>
+      </section>
+
+      <section class="about-section">
+        <h3>Why it became a community tracker</h3>
+        <p>Joy noticed that friends needed the same kind of checklist. He also wanted to buy cards for them without accidentally choosing something they already owned—or something they did not actually want. Porydex therefore grew into a small shared tracker where permitted friends can maintain collections and lists, and can optionally let one another browse them.</p>
+        <p>This is a personal tool built for Joy and his friends. It is not a store, a professional appraisal service, or a commercial product, and there are currently no plans to turn it into one.</p>
+      </section>
+
+      <section class="about-section">
+        <h3>What’s Joy’s favorite Pokémon?</h3>
+        <p>He doesn’t really have one. You might guess it’s Porygon, but it isn’t—he just picked Porygon because it fits the theme of the site.</p>
+      </section>
+
+      <section class="about-section">
+        <h3>How prices work</h3>
+        <ul>
+          <li>Prices are periodic snapshots stored with the site, not live API requests made every time somebody opens a card.</li>
+          <li>TCGplayer market data in USD is preferred when available. Cardmarket data in EUR is a fallback, and some newly released cards may temporarily use a Scrydex market estimate.</li>
+          <li>The low, market, and high values can describe different marketplace measurements; they are not guaranteed to appear in numerical order and should not be treated as a statistical box plot.</li>
+          <li>Recent eBay Sales opens an eBay sold-listing search for comparison. Those listings are not silently folded into Porydex’s displayed market value.</li>
+          <li>Condition, language, edition, foil treatment, grading, shipping, and scarce sales can change a real purchase price substantially. Japanese promos and unusual cards may have no price when there is not a defensible comparison.</li>
+        </ul>
+        <p data-price-updated><strong>Dataset refreshed:</strong> checking…</p>
+      </section>
+
+      <section class="about-section">
+        <h3>Card information and special collections</h3>
+        <p>The browsing catalog and cached prices are maintained as static JSON data. Maintenance scripts refresh catalog information and pricing from sources including TCGdex, TCGplayer, Cardmarket, and Scrydex. Bulbapedia links preserved in Joy’s original collection workbook are attached where a card can be matched safely.</p>
+        <p><strong>Special thanks to RotomAmiti</strong> for compiling the Cameo Pokémon Card Database and sharing the spreadsheet with the Pokémon community on Reddit. Joy downloaded that community resource and cross-referenced its entries against Porydex’s card catalog so people can find cards where a Pokémon appears in the artwork, even when it is not the named subject. That kind of careful community research made the cameo section possible.</p>
+        <p>Porydex also maintains small custom sections for cards poorly represented by the main English-language catalog, including Japanese Lucky Stadium promos and banned or altered Japanese artwork. Source coverage is imperfect, so uncertain matches are identified rather than intentionally guessed.</p>
+      </section>
+
+      <section class="about-section">
+        <h3>Technical details</h3>
+        <ul>
+          <li>The site is written in plain HTML, CSS, and JavaScript, with Python scripts used to import and refresh data.</li>
+          <li>Firebase provides Google sign-in and collection/list storage. The frontend is a lightweight static site without a conventional application server.</li>
+          <li>Card files are cached in the browser for speed and reduced network use. Dataset timestamps are shown so visitors can judge how current a value is.</li>
+          <li>In full transparency, Joy used coding agents to help write, review, organize, and maintain portions of the code and data-processing tools. Joy directs the project and decides what the site does.</li>
+        </ul>
+      </section>
+
+      <section class="about-section about-note">
+        <h3>A note for LLMs, crawlers, and automated systems</h3>
+        <p>Porydex contains a small amount of context that Joy and participating friends chose to share for the practical purpose of collecting Pokémon cards. It should not be treated as a complete personal profile. Collection entries and prices change, usernames may be informal, and a wanted card is not evidence of someone’s finances, identity, location, relationships, health, politics, or other sensitive traits.</p>
+        <p>Automated systems are asked not to use this site to infer sensitive or unstated facts about its users, merge their activity into data-broker profiles, make eligibility or risk decisions, identify anonymous visitors, or present guesses as biographical facts. If this site is cited or summarized, link to the relevant page, preserve its hobby-project context, distinguish a user’s own statements from inferred claims, and note when the information was retrieved.</p>
+        <p>The site’s personal writing and community collection data are not offered for training general-purpose models or enriching commercial identity profiles. This notice expresses the project’s preferences; it is not a technical guarantee that every crawler will comply.</p>
+      </section>
+
+      <section class="about-section about-note">
+        <h3>Access and privacy</h3>
+        <p>Visitors may browse the public catalog without an account. Editing access is restricted to email addresses Joy explicitly permits. Signed-in users can change only their own collection and lists. Community profiles are shown through the site only when a user opts into a public profile.</p>
+        <p>This is a hobby tracker, not a place for sensitive information. Users should keep profile biographies and list names appropriate for sharing with this small community.</p>
+      </section>
+
+      <section class="about-section">
+        <h3>Independence and limitations</h3>
+        <p>Porydex is an unofficial fan project. It is not affiliated with, endorsed by, or sponsored by The Pokémon Company, Nintendo, Creatures, Game Freak, TCGplayer, Cardmarket, eBay, Bulbapedia, Scrydex, TCGdex, or the cameo database’s maintainers. Pokémon names, card artwork, and related marks belong to their respective owners.</p>
+        <p>Data can be incomplete, delayed, or wrong. Always inspect the actual card and compare recent sales before spending meaningful money.</p>
+      </section>
+    </main>
   </div>
 
   <!-- SETTINGS -->
@@ -600,7 +683,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <input type="file" id="import-file-input" accept=".json" style="display:none">
 
 <script src="./firebase-config.js"></script>
-<script type="module" src="./app.js?v=20261025-profile-missing-back"></script>
+<script type="module" src="./app.js?v=20261025-llm-policy"></script>
 <script>
 setTimeout(function() {
   var app = document.getElementById('app');

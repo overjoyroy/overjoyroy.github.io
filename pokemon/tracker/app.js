@@ -1793,7 +1793,7 @@ async function renderCameosPage() {
         <p>${pokemon.length} Pokémon<br>${appearances.toLocaleString()} cameo appearances</p>
       </a>`;
     }).join('')}</div>
-    <p class="cameo-detail-note">Data from RotomAmiti’s Cameo Pokémon Card Database.</p>`;
+    <p class="cameo-detail-note">Data from RotomAmiti’s community spreadsheet—thank you for compiling and sharing it.</p>`;
   } catch (error) {
     el.innerHTML = `<div class="search-empty"><h3>Cameos unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
   }
@@ -1850,7 +1850,7 @@ async function renderCameoDetail(key) {
 // PROFILE VIEW + ROUTING
 // ─────────────────────────────────────────────────────────────────
 
-const VALID_TABS = ['search', 'sets', 'cameos', 'lists', 'community', 'settings'];
+const VALID_TABS = ['search', 'sets', 'cameos', 'lists', 'community', 'about', 'settings'];
 
 function parseRoute() {
   const hash = location.hash.slice(1);
@@ -2346,8 +2346,8 @@ document.getElementById('copy-profile-link').addEventListener('click', () => {
 window.addEventListener('hashchange', handleRoute);
 
 async function loadPricingMeta() {
-  const el = document.getElementById('price-data-updated');
-  if (!el) return;
+  const elements = document.querySelectorAll('[data-price-updated]');
+  if (!elements.length) return;
   try {
     const response = await fetch('./data/pricing-meta.json', { cache: 'no-store' });
     if (!response.ok) throw new Error('missing metadata');
@@ -2356,9 +2356,10 @@ async function loadPricingMeta() {
     const date = Number.isNaN(refreshed.getTime())
       ? meta.generatedAt
       : refreshed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-    el.innerHTML = `<strong>Dataset refreshed:</strong> ${esc(date)} · ${Number(meta.cardsWithPrices || 0).toLocaleString()} of ${Number(meta.totalCards || 0).toLocaleString()} cards have a market price.`;
+    const message = `<strong>Dataset refreshed:</strong> ${esc(date)} · ${Number(meta.cardsWithPrices || 0).toLocaleString()} of ${Number(meta.totalCards || 0).toLocaleString()} cards have a market price.`;
+    elements.forEach(element => { element.innerHTML = message; });
   } catch (_) {
-    el.innerHTML = '<strong>Dataset refreshed:</strong> date unavailable.';
+    elements.forEach(element => { element.innerHTML = '<strong>Dataset refreshed:</strong> date unavailable.'; });
   }
 }
 
