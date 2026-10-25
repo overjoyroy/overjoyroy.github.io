@@ -208,6 +208,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .action-bar-remove{background:#e53238;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:.78rem;cursor:pointer}
 .action-bar-remove:hover{background:#c0272d}
 .action-list-picker{position:absolute;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 5px 22px rgba(0,0,0,.22);min-width:180px;max-height:240px;overflow-y:auto;z-index:260}
+.action-list-picker.checklist-picker{width:min(340px,calc(100vw - 24px));max-height:min(520px,calc(100dvh - 100px));overflow:hidden;display:flex;flex-direction:column}
 .action-list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
 .action-list-picker-item:hover{background:#f0f0f5}
 .action-list-picker-create{border-top:1px solid #eee;color:var(--dark);font-weight:600}
@@ -220,7 +221,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .list-check-picker-item small{font-size:.6rem;color:#999;font-weight:400}
 .list-check-picker-item.inherited{cursor:not-allowed;background:#fafafa;color:#666}
 .list-check-picker-empty{padding:10px 14px;font-size:.72rem;color:#aaa}
-.list-check-picker-save{display:block;width:calc(100% - 20px);margin:8px 10px;background:var(--green);color:#fff;border:0;border-radius:7px;padding:8px;font-size:.76rem;font-weight:700;cursor:pointer}
+.list-check-picker-options{min-height:0;overflow-y:auto;overscroll-behavior:contain;border-top:1px solid #f1f1f1;border-bottom:1px solid #eee}
+.list-check-picker-actions{flex:none;background:#fff;padding:8px 10px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -3px 10px rgba(0,0,0,.06)}
+.list-check-picker-save{display:block;width:100%;margin:0 0 6px;background:var(--green);color:#fff;border:0;border-radius:7px;padding:9px;font-size:.76rem;font-weight:700;cursor:pointer}
 .list-check-picker-save:hover{background:#27ae60}
 .action-list-picker button.action-list-picker-item{width:100%;background:#fff;border-right:0;border-bottom:0;border-left:0;text-align:left}
 .bulk-add-btn.active{background:var(--dark);border-color:var(--dark);color:#fff}
@@ -369,6 +372,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   #action-bar-count{padding-top:7px;white-space:nowrap}
   .action-bar-btns{flex-wrap:wrap;justify-content:flex-end}
   .selection-mode-note{align-items:flex-start;flex-direction:column}
+  .action-list-picker.checklist-picker{position:fixed!important;top:calc(env(safe-area-inset-top) + 64px)!important;right:12px!important;left:12px!important;bottom:auto!important;width:auto;max-height:calc(100dvh - env(safe-area-inset-top) - 88px)}
 }
 </style>
 </head>
@@ -683,7 +687,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <input type="file" id="import-file-input" accept=".json" style="display:none">
 
 <script src="./firebase-config.js"></script>
-<script type="module" src="./app.js?v=20261025-bulk-owned"></script>
+<script type="module" src="./app.js?v=20261025-mobile-list-checklists"></script>
 <script>
 setTimeout(function() {
   var app = document.getElementById('app');

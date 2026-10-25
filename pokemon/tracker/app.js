@@ -904,10 +904,38 @@ window.showActionListPicker = function() {
   const lists = getLists();
   const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
 
-  picker.innerHTML = listArr.map(([lid, info]) =>
-    `<div class="action-list-picker-item" onclick="commitSelection('${esc(lid)}')">${esc(info.name)}</div>`
-  ).join('') +
-    `<div class="action-list-picker-item action-list-picker-create" onclick="commitSelection(null)">+ New list…</div>`;
+  if (selectedCards.size && !selectedSets.size) {
+    const cards = [...selectedCards].map(cardId => cardDataMap[cardId]).filter(Boolean);
+    picker.classList.add('checklist-picker');
+    picker.innerHTML = `<div class="list-check-picker-title">Choose lists for ${cards.length} cards</div>
+      <div class="list-check-picker-help">Checked adds every selected card. Unchecked removes them. A dash means only some are currently included.</div>
+      <div class="list-check-picker-options">${listArr.map(([listId, info]) => {
+        let included = 0;
+        let inherited = 0;
+        for (const card of cards) {
+          const membership = cardListMembership(card.id, card.set?.id || '');
+          if (membership.directByList[listId]?.length || membership.setLists.has(listId)) included++;
+          if (membership.setLists.has(listId)) inherited++;
+        }
+        const allIncluded = included === cards.length;
+        const mixed = included > 0 && !allIncluded;
+        return `<label class="list-check-picker-item">
+          <input type="checkbox" data-bulk-list-id="${esc(listId)}" data-mixed="${mixed}"${allIncluded ? ' checked' : ''} onchange="this.dataset.changed='true';this.indeterminate=false">
+          <span>${esc(info.name)}<small>${included} of ${cards.length} selected cards included${inherited ? ` · ${inherited} through an entire set` : ''}</small></span>
+        </label>`;
+      }).join('') || '<div class="list-check-picker-empty">No lists yet.</div>'}</div>
+      <div class="list-check-picker-actions">
+        <button class="list-check-picker-save" onclick="saveBulkListMembership()">Save Changes</button>
+        <button class="action-list-picker-item action-list-picker-create" onclick="commitSelection(null)">+ New list…</button>
+      </div>`;
+    picker.querySelectorAll('[data-bulk-list-id][data-mixed="true"]').forEach(checkbox => { checkbox.indeterminate = true; });
+  } else {
+    picker.classList.remove('checklist-picker');
+    picker.innerHTML = listArr.map(([lid, info]) =>
+      `<div class="action-list-picker-item" onclick="commitSelection('${esc(lid)}')">${esc(info.name)}</div>`
+    ).join('') +
+      `<div class="action-list-picker-item action-list-picker-create" onclick="commitSelection(null)">+ New list…</div>`;
+  }
 
   picker.classList.remove('hidden');
   const btn = document.getElementById('action-bar-add-btn');
@@ -918,6 +946,42 @@ window.showActionListPicker = function() {
   picker.style.right = (window.innerWidth - rect.right) + 'px';
 };
 
+window.saveBulkListMembership = async function() {
+  if (!currentUser || !selectedCards.size) return;
+  const cards = [...selectedCards].map(cardId => cardDataMap[cardId]).filter(Boolean);
+  const updates = {};
+  let additions = 0;
+  let removals = 0;
+  let counter = 0;
+  const timestamp = Date.now();
+
+  document.querySelectorAll('#action-list-picker [data-bulk-list-id]').forEach(checkbox => {
+    if (checkbox.dataset.mixed === 'true' && checkbox.dataset.changed !== 'true') return;
+    const listId = checkbox.dataset.bulkListId;
+    for (const card of cards) {
+      const membership = cardListMembership(card.id, card.set?.id || '');
+      const directItems = membership.directByList[listId] || [];
+      const inherited = membership.setLists.has(listId);
+      if (checkbox.checked && !directItems.length && !inherited) {
+        updates[`item_${timestamp}_c${counter++}`] = {
+          type: 'card', cardId: card.id, setId: card.set?.id || '', list: listId,
+        };
+        additions++;
+      } else if (!checkbox.checked && directItems.length) {
+        directItems.forEach(itemId => { updates[itemId] = deleteField(); });
+        removals += directItems.length;
+      }
+    }
+  });
+
+  if (Object.keys(updates).length) {
+    await updateDoc(doc(db, 'wantlists', currentUser.uid), updates);
+  }
+  document.getElementById('action-list-picker').classList.add('hidden');
+  showToast(additions || removals ? `Updated lists: ${additions} added, ${removals} removed` : 'No list changes');
+  exitSelectMode();
+};
+
 window.showModalListPicker = function() {
   if (!modalCardId || !currentUser) return;
   pendingSingleCardId = modalCardId;
@@ -926,18 +990,21 @@ window.showModalListPicker = function() {
   const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
   const card = cardDataMap[modalCardId];
   const { directByList, setLists } = cardListMembership(modalCardId, card?.set?.id || '');
+  picker.classList.add('checklist-picker');
   picker.innerHTML = `<div class="list-check-picker-title">Choose lists</div>
     <div class="list-check-picker-help">Check lists to add this card; uncheck them to remove it.</div>
-    ${listArr.map(([listId, info]) => {
+    <div class="list-check-picker-options">${listArr.map(([listId, info]) => {
       const fromSet = setLists.has(listId);
       const checked = fromSet || !!directByList[listId]?.length;
       return `<label class="list-check-picker-item${fromSet ? ' inherited' : ''}">
         <input type="checkbox" data-modal-list-id="${esc(listId)}"${checked ? ' checked' : ''}${fromSet ? ' disabled' : ''}>
         <span>${esc(info.name)}${fromSet ? '<small>Included through entire set</small>' : ''}</span>
       </label>`;
-    }).join('') || '<div class="list-check-picker-empty">No lists yet.</div>'}
-    <button class="list-check-picker-save" onclick="saveModalListMembership()">Save Changes</button>
-    <button class="action-list-picker-item action-list-picker-create" onclick="createListForModalCard()">+ New list…</button>`;
+    }).join('') || '<div class="list-check-picker-empty">No lists yet.</div>'}</div>
+    <div class="list-check-picker-actions">
+      <button class="list-check-picker-save" onclick="saveModalListMembership()">Save Changes</button>
+      <button class="action-list-picker-item action-list-picker-create" onclick="createListForModalCard()">+ New list…</button>
+    </div>`;
   picker.classList.remove('hidden');
   const rect = document.getElementById('modal-add-list-btn').getBoundingClientRect();
   picker.style.position = 'fixed';
