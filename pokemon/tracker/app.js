@@ -1616,9 +1616,6 @@ window.filterCameosPage = function(query) {
   document.querySelectorAll('#cameos-content .cameo-pokemon-card').forEach(card => {
     card.classList.toggle('hidden', q && !card.dataset.search.includes(q));
   });
-  document.querySelectorAll('#cameos-content .cameo-generation-group').forEach(group => {
-    group.classList.toggle('hidden', !group.querySelector('.cameo-pokemon-card:not(.hidden)'));
-  });
 };
 
 async function renderCameosPage() {
@@ -1626,26 +1623,47 @@ async function renderCameosPage() {
   el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cameos…</div>';
   try {
     const index = await loadCameoIndex();
-    const entries = Object.entries(index.pokemon).sort((a, b) =>
-      Number(a[1].dex || 9999) - Number(b[1].dex || 9999) || a[1].name.localeCompare(b[1].name)
-    );
     const byGeneration = {};
-    for (const entry of entries) (byGeneration[entry[1].generation || 'Other'] ||= []).push(entry);
+    for (const entry of Object.entries(index.pokemon)) (byGeneration[entry[1].generation || 'Other'] ||= []).push(entry);
     el.innerHTML = `<div class="cameo-directory-header">
-      <div><h2>Cameo Pokémon</h2><p>${entries.length} Pokémon · ${Number(index.meta?.matchedEntries || 0).toLocaleString()} catalog matches · ${Number(index.meta?.unmatchedEntries || 0).toLocaleString()} catalog pending</p></div>
-      <input class="cameo-filter" type="search" placeholder="Find a Pokémon…" oninput="filterCameosPage(this.value)">
-    </div>` + Object.entries(byGeneration).map(([generation, pokemon]) => `
-      <section class="cameo-generation-group">
-        <h3 class="cameo-generation">Generation ${esc(generation)} <span class="era-count">(${pokemon.length})</span></h3>
-        <div class="cameo-directory-grid">
-          ${pokemon.map(([key, group]) => `<a class="cameo-pokemon-card" href="#/cameos/${encodeURIComponent(key)}" data-search="${esc(`${group.name} ${group.dex || ''}`.toLowerCase())}">
-            <div><div class="cameo-pokemon-name">${esc(group.name)}</div><div class="cameo-pokemon-dex">${group.dex ? `#${esc(group.dex)}` : ''}</div></div>
-            <span class="cameo-count">${group.cards.length + (group.unmatched?.length || 0)}</span>
-          </a>`).join('')}
-        </div>
-      </section>`).join('') + `<p class="cameo-detail-note">Data from RotomAmiti’s Cameo Pokémon Card Database. Counts include only cards currently matched to the Porydex catalog.</p>`;
+      <div><h2>Cameo Pokémon</h2><p>Choose a generation, then a Pokémon, to browse its artwork appearances.</p></div>
+    </div>
+    <div class="cameo-generation-grid">${Object.entries(byGeneration).sort((a, b) => Number(a[0]) - Number(b[0])).map(([generation, pokemon]) => {
+      const appearances = pokemon.reduce((total, [, group]) => total + group.cards.length + (group.unmatched?.length || 0), 0);
+      return `<a class="cameo-generation-card" href="#/cameos/gen/${encodeURIComponent(generation)}">
+        <h3>Generation ${esc(generation)}</h3>
+        <p>${pokemon.length} Pokémon<br>${appearances.toLocaleString()} cameo appearances</p>
+      </a>`;
+    }).join('')}</div>
+    <p class="cameo-detail-note">Data from RotomAmiti’s Cameo Pokémon Card Database.</p>`;
   } catch (error) {
     el.innerHTML = `<div class="search-empty"><h3>Cameos unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+async function renderCameoGeneration(generation) {
+  const el = document.getElementById('cameos-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading Pokémon…</div>';
+  try {
+    const index = await loadCameoIndex();
+    const pokemon = Object.entries(index.pokemon)
+      .filter(([, group]) => String(group.generation) === String(generation))
+      .sort((a, b) => Number(a[1].dex || 9999) - Number(b[1].dex || 9999) || a[1].name.localeCompare(b[1].name));
+    if (!pokemon.length) throw new Error('This generation was not found in the cameo index.');
+    el.innerHTML = `<div class="set-detail-header">
+      <button class="set-back-btn" onclick="location.hash='#/cameos'">← Generations</button>
+      <div class="set-detail-title"><h2>Generation ${esc(generation)}</h2><p>${pokemon.length} Pokémon with cameo appearances</p></div>
+    </div>
+    <div class="cameo-directory-header"><div></div>
+      <input class="cameo-filter" type="search" placeholder="Find a Pokémon…" oninput="filterCameosPage(this.value)">
+    </div>
+    <div class="cameo-directory-grid">${pokemon.map(([key, group]) => `<a class="cameo-pokemon-card" href="#/cameos/${encodeURIComponent(key)}" data-search="${esc(`${group.name} ${group.dex || ''}`.toLowerCase())}">
+      <div><div class="cameo-pokemon-name">${esc(group.name)}</div><div class="cameo-pokemon-dex">${group.dex ? `#${esc(group.dex)}` : ''}</div></div>
+      <span class="cameo-count">${group.cards.length + (group.unmatched?.length || 0)}</span>
+    </a>`).join('')}</div>`;
+  } catch (error) {
+    el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/cameos'">← Generations</button>
+      <div class="search-empty"><h3>Generation unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
   }
 }
 
@@ -1658,14 +1676,14 @@ async function renderCameoDetail(key) {
     if (!group) throw new Error('This Pokémon was not found in the cameo index.');
     const cards = await fetchCameoCards(group.name);
     el.innerHTML = `<div class="set-detail-header">
-      <button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
+      <button class="set-back-btn" onclick="location.hash='#/cameos/gen/${encodeURIComponent(group.generation)}'">← Generation ${esc(group.generation)}</button>
       <div class="set-detail-title"><h2>${esc(group.name)} cameos</h2>
       <p>${cards.length} card appearance${cards.length === 1 ? '' : 's'}</p></div>
     </div>
     <p class="cameo-detail-note">These are cards where ${esc(group.name)} appears in the artwork but is not the named subject. “Catalog pending” entries come from the workbook but do not yet match a card in the main Porydex catalog.</p>
     <div class="card-grid">${cards.map(card => cardTile(card, { readonly: true, showSet: true })).join('')}</div>`;
   } catch (error) {
-    el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
+    el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/cameos'">← Generations</button>
       <div class="search-empty"><h3>Cameos unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
   }
 }
@@ -1682,6 +1700,8 @@ function parseRoute() {
   if (profileMatch) return { type: 'profile', uid: profileMatch[1], listId: profileMatch[2] || null };
   const setMatch = hash.match(/^\/sets\/([^/]+)$/);
   if (setMatch) return { type: 'set', setId: decodeURIComponent(setMatch[1]) };
+  const cameoGenerationMatch = hash.match(/^\/cameos\/gen\/([^/]+)$/);
+  if (cameoGenerationMatch) return { type: 'cameoGeneration', generation: decodeURIComponent(cameoGenerationMatch[1]) };
   const cameoMatch = hash.match(/^\/cameos\/([^/]+)$/);
   if (cameoMatch) return { type: 'cameo', pokemon: decodeURIComponent(cameoMatch[1]) };
   const tabMatch = hash.match(/^\/(\w+)$/);
@@ -1702,6 +1722,10 @@ function handleRoute() {
     hideProfileView();
     switchTab('cameos', true);
     renderCameoDetail(activeRoute.pokemon);
+  } else if (activeRoute.type === 'cameoGeneration') {
+    hideProfileView();
+    switchTab('cameos', true);
+    renderCameoGeneration(activeRoute.generation);
   } else if (activeRoute.type === 'tab') {
     hideProfileView();
     switchTab(activeRoute.tab, true);
@@ -2076,7 +2100,7 @@ window.switchTab = async function switchTab(tab, fromRouter) {
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   if (tab === 'lists') await renderLists();
   if (tab === 'sets' && activeRoute?.type !== 'set') await renderSetsPage();
-  if (tab === 'cameos' && activeRoute?.type !== 'cameo') await renderCameosPage();
+  if (tab === 'cameos' && !['cameo', 'cameoGeneration'].includes(activeRoute?.type)) await renderCameosPage();
   if (tab === 'community') await renderCommunity();
   if (tab === 'settings') await loadSettings();
   if (tab === 'search' && addingToList) {
