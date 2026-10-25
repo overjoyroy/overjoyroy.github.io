@@ -1844,7 +1844,7 @@ async function renderProfile(uid, filterListId) {
     profileCollectionData = { uid, coll, groups, unorganizedCards };
     tabsEl.innerHTML = `
       <a class="profile-section-tab${profileMode === 'lists' ? ' active' : ''}" href="#/profile/${esc(uid)}">Lists</a>
-      <a class="profile-section-tab${profileMode === 'collection' ? ' active' : ''}" href="#/profile/${esc(uid)}/collection">All Cards (${cardsOwned})</a>
+      <a class="profile-section-tab${profileMode === 'collection' ? ' active' : ''}" href="#/profile/${esc(uid)}/collection">Owned Cards (${cardsOwned})</a>
       <a class="profile-section-tab${profileMode === 'unorganized' ? ' active' : ''}" href="#/profile/${esc(uid)}/unorganized">Unorganized (${unorganizedCards.length})</a>`;
 
     if (profileMode !== 'lists') {
