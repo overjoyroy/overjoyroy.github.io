@@ -18,6 +18,7 @@ import argparse
 from collections import defaultdict
 from datetime import datetime, timezone
 import glob
+import hashlib
 import json
 import os
 import re
@@ -192,13 +193,32 @@ def main():
         pokemon_metadata.setdefault(normalize(entry["pokemon"]), {
             "dex": entry["dex"], "generation": entry["generation"],
         })
+    unmatched_by_pokemon = defaultdict(list)
+    for entry in unmatched:
+        key = normalize(entry["pokemon"])
+        identity = "|".join((entry["pokemon"], entry["cardName"], entry["setName"], entry["number"]))
+        card_id = "cameo-" + hashlib.sha1(identity.encode("utf-8")).hexdigest()[:12]
+        unmatched_by_pokemon[key].append({
+            "id": card_id,
+            "name": entry["cardName"],
+            "number": entry["number"],
+            "set": {
+                "id": "cameo-" + normalize(entry["setName"]),
+                "name": entry["setName"],
+                "series": "Cameo database",
+            },
+            "images": {},
+            "notes": [entry["notes"]] if entry["notes"] else [],
+            "catalogStatus": "unmatched",
+        })
     pokemon = {
         key: {
-            "name": display_names[key],
+            "name": name,
             **pokemon_metadata[key],
-            "cards": list(card_map.values()),
+            "cards": list(matched.get(key, {}).values()),
+            "unmatched": unmatched_by_pokemon.get(key, []),
         }
-        for key, card_map in sorted(matched.items(), key=lambda item: display_names[item[0]])
+        for key, name in sorted(display_names.items(), key=lambda item: item[1])
     }
     matched_rows = sum(len(item["cards"]) for item in pokemon.values())
     metadata = {

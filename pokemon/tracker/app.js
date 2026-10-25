@@ -586,7 +586,7 @@ function cameoKey(value) {
 
 async function loadCameoIndex() {
   if (!cameoIndex) {
-    const response = await fetch('./data/cameos.json?v=20261025', { cache: 'no-store' });
+    const response = await fetch('./data/cameos.json?v=20261025-2', { cache: 'no-store' });
     if (!response.ok) throw new Error('Cameo index is unavailable.');
     cameoIndex = await response.json();
   }
@@ -618,7 +618,14 @@ async function fetchCameoCards(pokemonName, setId = null) {
       });
     }
   }));
-  return entries.map(entry => cardsById.get(entry.id)).filter(Boolean);
+  const matchedCards = entries.map(entry => cardsById.get(entry.id)).filter(Boolean);
+  const unmatchedCards = setId ? [] : (group.unmatched || []).map(card => ({
+    ...card,
+    _cameoPokemon: group.name,
+    _cameoNotes: card.notes || [],
+    _cameoUnmatched: true,
+  }));
+  return [...matchedCards, ...unmatchedCards];
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -644,7 +651,7 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
 
   return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
   ${owned ? '<div class="owned-badge">Owned</div>' : ''}
-  ${card._cameoPokemon ? `<div class="cameo-badge">Cameo: ${esc(card._cameoPokemon)}</div>` : ''}
+  ${card._cameoPokemon ? `<div class="cameo-badge">Cameo: ${esc(card._cameoPokemon)}${card._cameoUnmatched ? ' · catalog pending' : ''}</div>` : ''}
   <div class="card-img-wrap" onclick="${clickAction}">
     ${img}<div class="card-overlay">${overlayText}</div>
   </div>
@@ -1406,7 +1413,8 @@ window.openModal = function(cardId) {
   const cameoEl = document.getElementById('modal-cameo');
   if (card._cameoPokemon) {
     const notes = card._cameoNotes?.length ? ` · ${card._cameoNotes.join(', ')}` : '';
-    cameoEl.textContent = `${card._cameoPokemon} appears in this card's artwork${notes}.`;
+    const pending = card._cameoUnmatched ? ' · main catalog match pending' : '';
+    cameoEl.textContent = `${card._cameoPokemon} appears in this card's artwork${notes}${pending}.`;
     cameoEl.classList.remove('hidden');
   } else {
     cameoEl.classList.add('hidden');
@@ -1586,7 +1594,7 @@ async function renderCameosPage() {
     const byGeneration = {};
     for (const entry of entries) (byGeneration[entry[1].generation || 'Other'] ||= []).push(entry);
     el.innerHTML = `<div class="cameo-directory-header">
-      <div><h2>Cameo Pokémon</h2><p>${entries.length} Pokémon · ${Number(index.meta?.matchedEntries || 0).toLocaleString()} matched card appearances</p></div>
+      <div><h2>Cameo Pokémon</h2><p>${entries.length} Pokémon · ${Number(index.meta?.matchedEntries || 0).toLocaleString()} catalog matches · ${Number(index.meta?.unmatchedEntries || 0).toLocaleString()} catalog pending</p></div>
       <input class="cameo-filter" type="search" placeholder="Find a Pokémon…" oninput="filterCameosPage(this.value)">
     </div>` + Object.entries(byGeneration).map(([generation, pokemon]) => `
       <section class="cameo-generation-group">
@@ -1594,7 +1602,7 @@ async function renderCameosPage() {
         <div class="cameo-directory-grid">
           ${pokemon.map(([key, group]) => `<a class="cameo-pokemon-card" href="#/cameos/${encodeURIComponent(key)}" data-search="${esc(`${group.name} ${group.dex || ''}`.toLowerCase())}">
             <div><div class="cameo-pokemon-name">${esc(group.name)}</div><div class="cameo-pokemon-dex">${group.dex ? `#${esc(group.dex)}` : ''}</div></div>
-            <span class="cameo-count">${group.cards.length}</span>
+            <span class="cameo-count">${group.cards.length + (group.unmatched?.length || 0)}</span>
           </a>`).join('')}
         </div>
       </section>`).join('') + `<p class="cameo-detail-note">Data from RotomAmiti’s Cameo Pokémon Card Database. Counts include only cards currently matched to the Porydex catalog.</p>`;
@@ -1614,9 +1622,9 @@ async function renderCameoDetail(key) {
     el.innerHTML = `<div class="set-detail-header">
       <button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
       <div class="set-detail-title"><h2>${esc(group.name)} cameos</h2>
-      <p>${cards.length} matched card appearance${cards.length === 1 ? '' : 's'}</p></div>
+      <p>${cards.length} card appearance${cards.length === 1 ? '' : 's'}</p></div>
     </div>
-    <p class="cameo-detail-note">These are cards where ${esc(group.name)} appears in the artwork but is not the named subject of the card.</p>
+    <p class="cameo-detail-note">These are cards where ${esc(group.name)} appears in the artwork but is not the named subject. “Catalog pending” entries come from the workbook but do not yet match a card in the main Porydex catalog.</p>
     <div class="card-grid">${cards.map(card => cardTile(card, { readonly: true, showSet: true })).join('')}</div>`;
   } catch (error) {
     el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/cameos'">← All cameos</button>
