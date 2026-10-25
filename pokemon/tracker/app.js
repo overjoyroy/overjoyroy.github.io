@@ -70,6 +70,7 @@ let selectMode     = false;
 let selectedCards  = new Set();
 let selectedSets   = new Set();
 let addingToList   = null;    // list ID when in "adding to list" mode
+let pendingSingleCardId = null; // card being added from the detail modal
 let selectionContext = 'search'; // 'search', 'list', or 'collection'
 let viewingListId  = null;    // which list detail is open
 let viewingCollection = false; // true when viewing My Collection
@@ -335,6 +336,8 @@ async function bootApp() {
   document.querySelectorAll('.tab-btn[data-tab="lists"]').forEach(b => b.classList.toggle('hidden', isGuest));
   document.querySelectorAll('.tab-btn[data-tab="settings"]').forEach(b => b.classList.toggle('hidden', isGuest));
   document.getElementById('modal-owned-btn')?.classList.toggle('hidden', isGuest);
+  document.getElementById('modal-add-list-btn')?.classList.toggle('hidden', isGuest);
+  document.getElementById('bulk-add-btn')?.classList.toggle('hidden', isGuest);
 
   document.getElementById('app').classList.remove('hidden');
 
@@ -644,11 +647,9 @@ function cardTile(card, { readonly = false, showSet = false, selectable = false,
     ? `<img class="card-img" src="${esc(imgSrc)}" alt="${esc(card.name)}" loading="lazy">`
     : `<div class="no-img">No image</div>`;
 
-  const clickAction = selectable || (!readonly && !isGuest)
-    ? `toggleCardSelect('${esc(card.id)}')`
-    : `openModal('${esc(card.id)}')`;
+  const clickAction = `handleCardClick('${esc(card.id)}')`;
 
-  const overlayText = sel ? 'Selected' : (owned ? '' : (selectable || (!readonly && !isGuest) ? 'Select' : 'View details'));
+  const overlayText = sel ? 'Selected' : (selectable ? 'Select' : 'View details');
   const cameoNotes = (card._cameoNotes || []).filter(Boolean).join('; ');
 
   return `<div class="card-tile${owned ? ' owned' : ''}${sel ? ' selected' : ''}" data-id="${esc(card.id)}" data-name="${esc(card.name.toLowerCase())}">
@@ -676,16 +677,43 @@ function enterSelectMode(listId, context) {
   selectedCards.clear();
   selectedSets.clear();
   updateActionBar();
+  const bulkButton = document.getElementById('bulk-add-btn');
+  if (bulkButton) {
+    bulkButton.classList.add('active');
+    bulkButton.textContent = 'Exit bulk selection';
+  }
 }
 
 function exitSelectMode() {
+  const rerenderSearch = selectionContext === 'search' && activeFilters.length;
   selectMode = false;
   addingToList = null;
   selectedCards.clear();
   selectedSets.clear();
   updateActionBar();
+  const bulkButton = document.getElementById('bulk-add-btn');
+  if (bulkButton) {
+    bulkButton.classList.remove('active');
+    bulkButton.textContent = 'Select cards for a list';
+  }
   document.querySelectorAll('.card-tile.selected').forEach(t => t.classList.remove('selected'));
+  if (rerenderSearch && activeTab === 'search') runFilteredSearch();
 }
+
+window.toggleBulkAddMode = function() {
+  if (isGuest) return;
+  if (selectMode) {
+    exitSelectMode();
+  } else {
+    enterSelectMode(null, 'search');
+    runFilteredSearch();
+  }
+};
+
+window.handleCardClick = function(cardId) {
+  if (selectMode) window.toggleCardSelect(cardId);
+  else window.openModal(cardId);
+};
 
 window.toggleCardSelect = function(cardId) {
   if (!selectMode) {
@@ -700,8 +728,7 @@ window.toggleCardSelect = function(cardId) {
     selectedCards.add(cardId);
     document.querySelectorAll(`.card-tile[data-id="${CSS.escape(cardId)}"]`).forEach(t => t.classList.add('selected'));
   }
-  if (!selectedCards.size && !selectedSets.size) exitSelectMode();
-  else updateActionBar();
+  updateActionBar();
 };
 
 window.selectAllInList = function() {
@@ -859,13 +886,47 @@ window.showActionListPicker = function() {
   const btn = document.getElementById('action-bar-add-btn');
   const rect = btn.getBoundingClientRect();
   picker.style.position = 'fixed';
-  picker.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  picker.style.top = Math.max(70, Math.min(rect.bottom + 6, window.innerHeight - 260)) + 'px';
+  picker.style.bottom = 'auto';
   picker.style.right = (window.innerWidth - rect.right) + 'px';
+};
+
+window.showModalListPicker = function() {
+  if (!modalCardId || !currentUser) return;
+  pendingSingleCardId = modalCardId;
+  const picker = document.getElementById('action-list-picker');
+  const lists = getLists();
+  const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+  picker.innerHTML = listArr.map(([listId, info]) =>
+    `<div class="action-list-picker-item" onclick="addModalCardToList('${esc(listId)}')">${esc(info.name)}</div>`
+  ).join('') + `<div class="action-list-picker-item action-list-picker-create" onclick="addModalCardToList(null)">+ New list…</div>`;
+  picker.classList.remove('hidden');
+  const rect = document.getElementById('modal-add-list-btn').getBoundingClientRect();
+  picker.style.position = 'fixed';
+  picker.style.top = Math.max(70, Math.min(rect.bottom + 6, window.innerHeight - 260)) + 'px';
+  picker.style.bottom = 'auto';
+  picker.style.right = Math.max(8, window.innerWidth - rect.right) + 'px';
+};
+
+window.addModalCardToList = async function(listId) {
+  const card = cardDataMap[pendingSingleCardId];
+  if (!card || !currentUser) return;
+  if (!listId) {
+    const name = prompt('New list name:');
+    if (!name) return;
+    listId = await createList(name.trim());
+    if (!listId) return;
+  }
+  await addItemsToList(listId, [card], []);
+  const listName = getLists()[listId]?.name || 'list';
+  document.getElementById('action-list-picker').classList.add('hidden');
+  pendingSingleCardId = null;
+  showToast(`Added ${card.name} to ${listName}`);
 };
 
 document.addEventListener('click', e => {
   const picker = document.getElementById('action-list-picker');
-  if (picker && !e.target.closest('#action-list-picker') && !e.target.closest('#action-bar-add-btn')) {
+  if (picker && !e.target.closest('#action-list-picker') && !e.target.closest('#action-bar-add-btn') && !e.target.closest('#modal-add-list-btn')) {
     picker.classList.add('hidden');
   }
 });
@@ -1016,8 +1077,9 @@ async function runFilteredSearch() {
       return;
     }
 
-    const selectable = !isGuest;
-    const selectAllBtn = selectable ? `<div style="grid-column:1/-1;padding:2px 0 6px">
+    const selectable = selectMode && !isGuest;
+    const selectAllBtn = selectable ? `<div class="selection-mode-note" style="grid-column:1/-1">
+  <span>Bulk add mode: tap cards to select them.</span>
   <button class="select-all-btn" onclick="selectAllVisible()">Select all ${cards.length} cards</button>
 </div>` : '';
 
@@ -1512,6 +1574,7 @@ window.openModal = function(cardId) {
     : 'No market price is currently available for this printing.';
 
   syncModalBtn(!!collection[cardId]);
+  document.getElementById('modal-add-list-btn')?.classList.toggle('hidden', !currentUser || isGuest);
   document.getElementById('modal-bg').classList.add('open');
 };
 
@@ -1545,6 +1608,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 function closeModal() {
   document.getElementById('modal-bg').classList.remove('open');
+  document.getElementById('action-list-picker')?.classList.add('hidden');
+  pendingSingleCardId = null;
   modalCardId = null;
 }
 
@@ -2249,6 +2314,7 @@ window.switchTab = async function switchTab(tab, fromRouter) {
     const lists = getLists();
     const name = lists[addingToList]?.name || 'list';
     showToast(`Adding to: ${name}. Select cards, then click "Add to list".`);
+    if (activeFilters.length) runFilteredSearch();
   }
 };
 
