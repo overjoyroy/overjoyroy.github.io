@@ -154,6 +154,29 @@ function getListItems(listId) {
     .map(([itemId, info]) => ({ itemId, ...info }));
 }
 
+function cardListMembership(cardId, setId) {
+  const directByList = {};
+  const setLists = new Set();
+  for (const [itemId, item] of Object.entries(wantlists)) {
+    if (itemId.startsWith('_') || !item?.list) continue;
+    if (item.type === 'card' && item.cardId === cardId) {
+      (directByList[item.list] ||= []).push(itemId);
+    } else if (item.type === 'set' && item.setId === setId) {
+      setLists.add(item.list);
+    }
+  }
+  return { directByList, setLists };
+}
+
+function syncModalListButton(cardId) {
+  const button = document.getElementById('modal-add-list-btn');
+  const card = cardDataMap[cardId];
+  if (!button || !card) return;
+  const membership = cardListMembership(cardId, card.set?.id || '');
+  const listIds = new Set([...Object.keys(membership.directByList), ...membership.setLists]);
+  button.textContent = listIds.size ? `Lists (${listIds.size})` : 'Add to Lists';
+}
+
 async function resolveListCards(listId) {
   const items = getListItems(listId);
   const allCards = [];
@@ -426,6 +449,7 @@ function listenWantlists() {
       wantlists = { _version: 3, _lists: {} };
     }
     if (activeTab === 'lists') renderLists();
+    if (modalCardId) syncModalListButton(modalCardId);
   });
 }
 
@@ -897,9 +921,20 @@ window.showModalListPicker = function() {
   const picker = document.getElementById('action-list-picker');
   const lists = getLists();
   const listArr = Object.entries(lists).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-  picker.innerHTML = listArr.map(([listId, info]) =>
-    `<div class="action-list-picker-item" onclick="addModalCardToList('${esc(listId)}')">${esc(info.name)}</div>`
-  ).join('') + `<div class="action-list-picker-item action-list-picker-create" onclick="addModalCardToList(null)">+ New list…</div>`;
+  const card = cardDataMap[modalCardId];
+  const { directByList, setLists } = cardListMembership(modalCardId, card?.set?.id || '');
+  picker.innerHTML = `<div class="list-check-picker-title">Choose lists</div>
+    <div class="list-check-picker-help">Check lists to add this card; uncheck them to remove it.</div>
+    ${listArr.map(([listId, info]) => {
+      const fromSet = setLists.has(listId);
+      const checked = fromSet || !!directByList[listId]?.length;
+      return `<label class="list-check-picker-item${fromSet ? ' inherited' : ''}">
+        <input type="checkbox" data-modal-list-id="${esc(listId)}"${checked ? ' checked' : ''}${fromSet ? ' disabled' : ''}>
+        <span>${esc(info.name)}${fromSet ? '<small>Included through entire set</small>' : ''}</span>
+      </label>`;
+    }).join('') || '<div class="list-check-picker-empty">No lists yet.</div>'}
+    <button class="list-check-picker-save" onclick="saveModalListMembership()">Save Changes</button>
+    <button class="action-list-picker-item action-list-picker-create" onclick="createListForModalCard()">+ New list…</button>`;
   picker.classList.remove('hidden');
   const rect = document.getElementById('modal-add-list-btn').getBoundingClientRect();
   picker.style.position = 'fixed';
@@ -908,20 +943,52 @@ window.showModalListPicker = function() {
   picker.style.right = Math.max(8, window.innerWidth - rect.right) + 'px';
 };
 
-window.addModalCardToList = async function(listId) {
+window.saveModalListMembership = async function() {
   const card = cardDataMap[pendingSingleCardId];
   if (!card || !currentUser) return;
-  if (!listId) {
-    const name = prompt('New list name:');
-    if (!name) return;
-    listId = await createList(name.trim());
-    if (!listId) return;
+  const { directByList, setLists } = cardListMembership(card.id, card.set?.id || '');
+  const updates = {};
+  let added = 0;
+  let removed = 0;
+  let counter = 0;
+  const timestamp = Date.now();
+  document.querySelectorAll('#action-list-picker [data-modal-list-id]').forEach(checkbox => {
+    const listId = checkbox.dataset.modalListId;
+    const directItems = directByList[listId] || [];
+    if (checkbox.checked && !directItems.length && !setLists.has(listId)) {
+      updates[`item_${timestamp}_c${counter++}`] = {
+        type: 'card', cardId: card.id, setId: card.set?.id || '', list: listId,
+      };
+      added++;
+    } else if (!checkbox.checked && directItems.length) {
+      directItems.forEach(itemId => { updates[itemId] = deleteField(); });
+      removed += directItems.length;
+    }
+  });
+  if (Object.keys(updates).length) {
+    await updateDoc(doc(db, 'wantlists', currentUser.uid), updates);
   }
-  await addItemsToList(listId, [card], []);
-  const listName = getLists()[listId]?.name || 'list';
+  const finalCount = document.querySelectorAll('#action-list-picker [data-modal-list-id]:checked').length;
+  const modalListButton = document.getElementById('modal-add-list-btn');
+  if (modalListButton) modalListButton.textContent = finalCount ? `Lists (${finalCount})` : 'Add to Lists';
   document.getElementById('action-list-picker').classList.add('hidden');
   pendingSingleCardId = null;
-  showToast(`Added ${card.name} to ${listName}`);
+  if (added || removed) showToast(`Updated lists: ${added} added, ${removed} removed`);
+  else showToast('No list changes');
+};
+
+window.createListForModalCard = async function() {
+  const card = cardDataMap[pendingSingleCardId];
+  if (!card || !currentUser) return;
+  const name = prompt('New list name:');
+  if (!name) return;
+  const listId = await createList(name.trim());
+  if (!listId) return;
+  await addItemsToList(listId, [card], []);
+  document.getElementById('action-list-picker').classList.add('hidden');
+  pendingSingleCardId = null;
+  syncModalListButton(card.id);
+  showToast(`Created ${name.trim()} and added ${card.name}`);
 };
 
 document.addEventListener('click', e => {
@@ -1574,6 +1641,7 @@ window.openModal = function(cardId) {
     : 'No market price is currently available for this printing.';
 
   syncModalBtn(!!collection[cardId]);
+  syncModalListButton(cardId);
   document.getElementById('modal-add-list-btn')?.classList.toggle('hidden', !currentUser || isGuest);
   document.getElementById('modal-bg').classList.add('open');
 };

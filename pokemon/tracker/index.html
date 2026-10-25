@@ -211,6 +211,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .action-list-picker-item{padding:8px 14px;cursor:pointer;font-size:.78rem;color:#333}
 .action-list-picker-item:hover{background:#f0f0f5}
 .action-list-picker-create{border-top:1px solid #eee;color:var(--dark);font-weight:600}
+.list-check-picker-title{padding:11px 14px 2px;font-size:.82rem;font-weight:700;color:var(--dark)}
+.list-check-picker-help{padding:0 14px 8px;font-size:.66rem;color:#999;line-height:1.35;max-width:250px}
+.list-check-picker-item{display:flex;align-items:flex-start;gap:9px;padding:8px 14px;font-size:.78rem;color:#333;cursor:pointer}
+.list-check-picker-item:hover{background:#f7f7f9}
+.list-check-picker-item input{margin-top:2px;accent-color:var(--green)}
+.list-check-picker-item span{display:flex;flex-direction:column;gap:2px}
+.list-check-picker-item small{font-size:.6rem;color:#999;font-weight:400}
+.list-check-picker-item.inherited{cursor:not-allowed;background:#fafafa;color:#666}
+.list-check-picker-empty{padding:10px 14px;font-size:.72rem;color:#aaa}
+.list-check-picker-save{display:block;width:calc(100% - 20px);margin:8px 10px;background:var(--green);color:#fff;border:0;border-radius:7px;padding:8px;font-size:.76rem;font-weight:700;cursor:pointer}
+.list-check-picker-save:hover{background:#27ae60}
+.action-list-picker button.action-list-picker-item{width:100%;background:#fff;border-right:0;border-bottom:0;border-left:0;text-align:left}
 .bulk-add-btn.active{background:var(--dark);border-color:var(--dark);color:#fff}
 .selection-mode-note{padding:7px 10px;background:#fff8dc;border:1px solid #ead993;border-radius:9px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.72rem;color:#665b2f}
 
@@ -588,7 +600,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <input type="file" id="import-file-input" accept=".json" style="display:none">
 
 <script src="./firebase-config.js"></script>
-<script type="module" src="./app.js?v=20261025-mobile-selection"></script>
+<script type="module" src="./app.js?v=20261025-list-checkboxes"></script>
 <script>
 setTimeout(function() {
   var app = document.getElementById('app');
