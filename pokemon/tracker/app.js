@@ -718,7 +718,7 @@ function exitSelectMode() {
   const bulkButton = document.getElementById('bulk-add-btn');
   if (bulkButton) {
     bulkButton.classList.remove('active');
-    bulkButton.textContent = 'Select cards for a list';
+    bulkButton.textContent = 'Bulk select cards';
   }
   document.querySelectorAll('.card-tile.selected').forEach(t => t.classList.remove('selected'));
   if (rerenderSearch && activeTab === 'search') runFilteredSearch();
@@ -808,7 +808,10 @@ function updateActionBar() {
   <button class="action-bar-remove" onclick="removeSelectedFromList()">Remove from List</button>
   <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
   } else {
-    btns.innerHTML = `<button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Add to list ▾</button>
+    const ownershipButtons = selectedSets.size ? '' : `<button class="action-bar-owned" onclick="markSelectedOwned()">Mark Owned</button>
+  <button class="action-bar-unowned" onclick="markSelectedNotOwned()">Mark Not Owned</button>`;
+    btns.innerHTML = `${ownershipButtons}
+  <button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Add to list ▾</button>
   <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
   }
 }
@@ -1146,7 +1149,7 @@ async function runFilteredSearch() {
 
     const selectable = selectMode && !isGuest;
     const selectAllBtn = selectable ? `<div class="selection-mode-note" style="grid-column:1/-1">
-  <span>Bulk add mode: tap cards to select them.</span>
+  <span>Bulk selection mode: tap cards, then choose an action.</span>
   <button class="select-all-btn" onclick="selectAllVisible()">Select all ${cards.length} cards</button>
 </div>` : '';
 
