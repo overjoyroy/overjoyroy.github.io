@@ -74,6 +74,7 @@ let selectionContext = 'search'; // 'search', 'list', or 'collection'
 let viewingListId  = null;    // which list detail is open
 let viewingCollection = false; // true when viewing My Collection
 let collectionViewMode = 'all'; // 'all' or 'unorganized'
+let profileCollectionData = null; // collection currently shown on a public profile
 
 // Search filter state
 let activeFilters  = [];      // [{ type, value, label }]
@@ -1153,6 +1154,23 @@ async function resolveUnorganizedCards(cardIds) {
   });
 }
 
+async function classifyOwnedCards(ownedIds) {
+  let catalogById = new Map();
+  try {
+    const searchIndex = await loadCardSearchIndex();
+    catalogById = new Map(searchIndex.cards.map(card => [card.id, card]));
+  } catch (_) {}
+
+  const bySet = {};
+  const unorganizedIds = [];
+  for (const cardId of ownedIds) {
+    const catalogCard = catalogById.get(cardId);
+    if (catalogCard) (bySet[catalogCard.setId] ||= []).push(cardId);
+    else unorganizedIds.push(cardId);
+  }
+  return { bySet, unorganizedIds };
+}
+
 window.openCollection = async function(view = 'all') {
   viewingListId = null;
   viewingCollection = true;
@@ -1179,18 +1197,7 @@ window.openCollection = async function(view = 'all') {
 
   // Resolve set membership from the generated catalog index. Parsing the ID
   // is unreliable for promo numbers, legacy imports, and cameo-only cards.
-  let catalogById = new Map();
-  try {
-    const searchIndex = await loadCardSearchIndex();
-    catalogById = new Map(searchIndex.cards.map(card => [card.id, card]));
-  } catch (_) {}
-  const bySet = {};
-  const unorganizedIds = [];
-  for (const cardId of ownedIds) {
-    const catalogCard = catalogById.get(cardId);
-    if (catalogCard) (bySet[catalogCard.setId] ||= []).push(cardId);
-    else unorganizedIds.push(cardId);
-  }
+  const { bySet, unorganizedIds } = await classifyOwnedCards(ownedIds);
   const unorganizedCards = await resolveUnorganizedCards(unorganizedIds);
 
   // Fetch sets metadata for ordering
@@ -1756,8 +1763,10 @@ function hideProfileView() {
 
 async function renderProfile(uid, filterListId) {
   const headerEl = document.getElementById('profile-header');
+  const tabsEl = document.getElementById('profile-section-tabs');
   const listsEl = document.getElementById('profile-wishlists');
   headerEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  tabsEl.innerHTML = '';
   listsEl.innerHTML = '';
 
   const isOwn = currentUser && uid === currentUser.uid;
@@ -1781,7 +1790,8 @@ async function renderProfile(uid, filterListId) {
     const name = userName(userData);
     const photo = userData.photoURL || '';
     const bio = userData.bio || '';
-    const cardsOwned = Object.keys(coll).length;
+    const ownedIds = Object.keys(coll);
+    const cardsOwned = ownedIds.length;
 
     const avatarHtml = photo
       ? `<img class="profile-avatar" src="${esc(photo)}" alt="${esc(name)}">`
@@ -1794,6 +1804,20 @@ async function renderProfile(uid, filterListId) {
       <div class="profile-stats-row">
         <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
       </div>`;
+
+    const { bySet, unorganizedIds } = await classifyOwnedCards(ownedIds);
+    const profileMode = filterListId === 'collection' ? 'collection'
+      : filterListId === 'unorganized' ? 'unorganized' : 'lists';
+    profileCollectionData = { uid, coll, bySet, unorganizedIds };
+    tabsEl.innerHTML = `
+      <a class="profile-section-tab${profileMode === 'lists' ? ' active' : ''}" href="#/profile/${esc(uid)}">Lists</a>
+      <a class="profile-section-tab${profileMode === 'collection' ? ' active' : ''}" href="#/profile/${esc(uid)}/collection">All Cards (${cardsOwned})</a>
+      <a class="profile-section-tab${profileMode === 'unorganized' ? ' active' : ''}" href="#/profile/${esc(uid)}/unorganized">Unorganized (${unorganizedIds.length})</a>`;
+
+    if (profileMode !== 'lists') {
+      await renderProfileCollection(profileMode);
+      return;
+    }
 
     // Handle both v2 and v3 wantlist formats
     let lists, listArr;
@@ -1864,6 +1888,77 @@ async function renderProfile(uid, filterListId) {
     headerEl.innerHTML = `<div class="loading">Failed to load profile: ${esc(e.message)}</div>`;
   }
 }
+
+async function renderProfileCollection(mode) {
+  const listsEl = document.getElementById('profile-wishlists');
+  const data = profileCollectionData;
+  if (!data) return;
+
+  const { coll, bySet, unorganizedIds } = data;
+  if (mode === 'unorganized') {
+    const cards = await resolveUnorganizedCards(unorganizedIds);
+    listsEl.innerHTML = `<p class="unorganized-help">These owned cards could not be matched to a current catalog set. This can include legacy imports and cameo-only records.</p>
+      <div class="card-grid" style="padding:12px 16px">${cards.map(card => cardTile(card, { readonly: true, showSet: true, collectionOverride: coll })).join('') || '<p class="list-empty">Every owned card is organized into a catalog set.</p>'}</div>`;
+    return;
+  }
+
+  if (!Object.keys(coll).length) {
+    listsEl.innerHTML = '<div class="wantlist-empty"><p>No cards owned yet.</p></div>';
+    return;
+  }
+
+  listsEl.innerHTML = '<div class="loading"><div class="spinner"></div>Loading collection…</div>';
+  const sets = await fetchAllSets();
+  if (profileCollectionData !== data) return;
+  const setMeta = Object.fromEntries(sets.map(set => [set.id, set]));
+  const sortedSetIds = Object.keys(bySet).sort((a, b) => {
+    const dateCmp = (setMeta[b]?.releaseDate || '').localeCompare(setMeta[a]?.releaseDate || '');
+    return dateCmp || (setMeta[a]?.name || a).localeCompare(setMeta[b]?.name || b);
+  });
+
+  let html = '';
+  for (const setId of sortedSetIds) {
+    const setName = setMeta[setId]?.name || setId;
+    html += `<div class="list-section collapsed" data-profile-collection-set="${esc(setId)}">
+      <div class="list-header" onclick="toggleProfileCollectionSet(this, '${esc(setId)}')">
+        <div class="list-header-left"><span class="toggle-icon">▾</span><span class="list-name">${esc(setName)}</span></div>
+        <span class="list-progress">${bySet[setId].length} owned</span>
+      </div>
+      <div class="list-body"><div class="card-grid" id="profile-collection-set-${esc(setId)}">
+        <div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>
+      </div></div>
+    </div>`;
+  }
+
+  if (unorganizedIds.length) {
+    html += `<div class="list-section collapsed">
+      <div class="list-header" onclick="location.hash='#/profile/${esc(data.uid)}/unorganized'">
+        <div class="list-header-left"><span class="toggle-icon">→</span><span class="list-name">Unorganized</span></div>
+        <span class="list-progress">${unorganizedIds.length} owned</span>
+      </div>
+    </div>`;
+  }
+  listsEl.innerHTML = html;
+}
+
+window.toggleProfileCollectionSet = async function(header, setId) {
+  const section = header.closest('.list-section');
+  section.classList.toggle('collapsed');
+  const grid = document.getElementById(`profile-collection-set-${setId}`);
+  const data = profileCollectionData;
+  if (section.classList.contains('collapsed') || !grid || grid.dataset.loaded || !data) return;
+
+  grid.dataset.loaded = 'true';
+  try {
+    const ownedInSet = new Set(data.bySet[setId] || []);
+    const cards = (await fetchSetCards(setId)).filter(card => ownedInSet.has(card.id));
+    cards.sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
+    grid.innerHTML = cards.map(card => cardTile(card, { readonly: true, showSet: false, collectionOverride: data.coll })).join('')
+      || '<p class="list-empty">No cards found for this set.</p>';
+  } catch (error) {
+    grid.innerHTML = `<p class="list-empty">Could not load this set: ${esc(error.message)}</p>`;
+  }
+};
 
 window.viewProfileMissing = async function(uid) {
   const listsEl = document.getElementById('profile-wishlists');

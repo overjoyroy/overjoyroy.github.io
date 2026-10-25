@@ -244,7 +244,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .profile-settings-btn{margin-top:10px;background:var(--dark);color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:.78rem;cursor:pointer}
 .profile-settings-btn:hover{background:#2a2a4e}
 .profile-settings{margin-top:14px;padding:14px 16px;background:#f8f8fa;border-radius:10px;max-width:320px;margin-left:auto;margin-right:auto}
-.profile-lists-header{padding:16px 16px 8px;font-size:.88rem;font-weight:700;color:#555}
+.profile-section-tabs{display:flex;gap:6px;padding:12px 16px;background:#fff;border-bottom:1px solid #eee;overflow-x:auto}
+.profile-section-tab{display:inline-flex;align-items:center;white-space:nowrap;padding:7px 13px;border:1px solid #ddd;border-radius:999px;color:#666;font-size:.78rem;font-weight:600;text-decoration:none;background:#fff}
+.profile-section-tab:hover{border-color:#bbb;background:#f8f8fa}
+.profile-section-tab.active{color:#fff;background:var(--dark);border-color:var(--dark)}
 
 /* ── Settings tab ── */
 .settings-panel{max-width:480px;margin:0 auto;padding:20px 16px}
@@ -529,7 +532,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
       <button class="share-profile-btn" id="copy-profile-link">Copy Link</button>
     </div>
     <div class="profile-header" id="profile-header"></div>
-    <div class="profile-lists-header">Lists</div>
+    <div class="profile-section-tabs" id="profile-section-tabs"></div>
     <div id="profile-wishlists"></div>
   </div>
 
@@ -574,7 +577,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <input type="file" id="import-file-input" accept=".json" style="display:none">
 
 <script src="./firebase-config.js"></script>
-<script type="module" src="./app.js?v=20261025-cameo-generations"></script>
+<script type="module" src="./app.js?v=20261025-community-collection"></script>
 <script>
 setTimeout(function() {
   var app = document.getElementById('app');
