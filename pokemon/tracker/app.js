@@ -73,6 +73,7 @@ let addingToList   = null;    // list ID when in "adding to list" mode
 let selectionContext = 'search'; // 'search', 'list', or 'collection'
 let viewingListId  = null;    // which list detail is open
 let viewingCollection = false; // true when viewing My Collection
+let collectionViewMode = 'all'; // 'all' or 'unorganized'
 
 // Search filter state
 let activeFilters  = [];      // [{ type, value, label }]
@@ -811,7 +812,7 @@ window.markSelectedNotOwned = async function() {
   const wasListId = viewingListId;
   showToast(`Unmarked ${count} card${count !== 1 ? 's' : ''}`);
   exitSelectMode();
-  if (wasCollection) openCollection();
+  if (wasCollection) openCollection(collectionViewMode);
   else if (wasListId) openList(wasListId);
 };
 
@@ -1135,9 +1136,27 @@ window.openList = async function(listId) {
 <div class="card-grid" id="filtered-card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
 };
 
-window.openCollection = async function() {
+async function resolveUnorganizedCards(cardIds) {
+  const cameoCards = new Map();
+  try {
+    const index = await loadCameoIndex();
+    for (const group of Object.values(index.pokemon || {})) {
+      for (const card of group.unmatched || []) cameoCards.set(card.id, card);
+    }
+  } catch (_) {}
+  return cardIds.map(cardId => cardDataMap[cardId] || cameoCards.get(cardId) || {
+    id: cardId,
+    name: cardId,
+    number: 'Unresolved',
+    set: { id: 'unorganized', name: 'Unorganized', series: 'Collection' },
+    images: {},
+  });
+}
+
+window.openCollection = async function(view = 'all') {
   viewingListId = null;
   viewingCollection = true;
+  collectionViewMode = view;
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   const el = document.getElementById('lists-content');
   const ownedIds = Object.keys(collection);
@@ -1158,13 +1177,21 @@ window.openCollection = async function() {
 </div>
 <div class="loading"><div class="spinner"></div>Loading collection…</div>`;
 
-  // Group owned card IDs by set
+  // Resolve set membership from the generated catalog index. Parsing the ID
+  // is unreliable for promo numbers, legacy imports, and cameo-only cards.
+  let catalogById = new Map();
+  try {
+    const searchIndex = await loadCardSearchIndex();
+    catalogById = new Map(searchIndex.cards.map(card => [card.id, card]));
+  } catch (_) {}
   const bySet = {};
+  const unorganizedIds = [];
   for (const cardId of ownedIds) {
-    const parts = cardId.match(/^(.+)-\d+$/);
-    const setId = parts ? parts[1] : cardId;
-    (bySet[setId] = bySet[setId] || []).push(cardId);
+    const catalogCard = catalogById.get(cardId);
+    if (catalogCard) (bySet[catalogCard.setId] ||= []).push(cardId);
+    else unorganizedIds.push(cardId);
   }
+  const unorganizedCards = await resolveUnorganizedCards(unorganizedIds);
 
   // Fetch sets metadata for ordering
   const sets = await fetchAllSets();
@@ -1179,11 +1206,22 @@ window.openCollection = async function() {
   <span class="list-progress" style="color:#888">${ownedIds.length} card${ownedIds.length !== 1 ? 's' : ''}</span>
   <button class="list-action-btn" onclick="viewAllMissing()">View All Missing</button>
 </div>
+<div class="collection-tabs">
+  <button class="collection-tab-btn${view === 'all' ? ' active' : ''}" onclick="openCollection('all')">All Cards (${ownedIds.length})</button>
+  <button class="collection-tab-btn${view === 'unorganized' ? ' active' : ''}" onclick="openCollection('unorganized')">Unorganized (${unorganizedIds.length})</button>
+</div>
+${view === 'unorganized' ? `<p class="unorganized-help">Cards appear here when their saved ownership ID cannot be matched to a current catalog set. Cameo-only and legacy imported records can still be viewed or removed.</p>
+<div class="card-grid" style="padding:12px 16px">${unorganizedCards.map(card => cardTile(card, { showSet: true })).join('') || '<p class="list-empty">Every owned card is organized into a catalog set.</p>'}</div>` : `
 <div class="card-filter-bar">
   <button class="card-filter-btn active" onclick="setCollectionFilter('owned', this)">Owned Only</button>
   <button class="card-filter-btn" onclick="setCollectionFilter('all', this)">Full Sets</button>
   <button class="card-filter-btn" onclick="setCollectionFilter('missing', this)">Missing Only</button>
-</div>`;
+</div>`}`;
+
+  if (view === 'unorganized') {
+    el.innerHTML = html;
+    return;
+  }
 
   for (const setId of sortedSetIds) {
     const setName = setMeta[setId]?.name || setId;
@@ -1202,6 +1240,16 @@ window.openCollection = async function() {
     </div>
   </div>
 </div>`;
+  }
+
+  if (unorganizedCards.length) {
+    html += `<div class="list-section collapsed">
+      <div class="list-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="list-header-left"><span class="toggle-icon">▾</span><span class="list-name">Unorganized</span></div>
+        <span class="list-progress">${unorganizedCards.length} owned</span>
+      </div>
+      <div class="list-body"><div class="card-grid">${unorganizedCards.map(card => cardTile(card, { showSet: true })).join('')}</div></div>
+    </div>`;
   }
 
   el.innerHTML = html;

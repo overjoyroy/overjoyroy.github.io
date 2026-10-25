@@ -177,6 +177,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-filter-btn{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 12px;border-radius:14px;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .15s}
 .card-filter-btn:hover{background:#e0e0e5}
 .card-filter-btn.active{background:var(--dark);color:#fff;border-color:var(--dark)}
+.collection-tabs{display:flex;gap:6px;padding:10px 16px 0}
+.collection-tab-btn{background:#fff;color:#666;border:1px solid #ddd;padding:6px 14px;border-radius:14px;font-size:.74rem;font-weight:700;cursor:pointer}
+.collection-tab-btn.active{background:var(--dark);border-color:var(--dark);color:#fff}
+.unorganized-help{font-size:.72rem;color:#999;padding:10px 16px 2px;line-height:1.45}
 .list-action-btn{background:#f0f0f5;color:#555;border:1px solid #ddd;padding:4px 10px;border-radius:8px;font-size:.72rem;cursor:pointer}
 .list-action-btn:hover{background:#e0e0e5}
 .list-action-delete{color:#e53238}
@@ -565,7 +569,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 <input type="file" id="import-file-input" accept=".json" style="display:none">
 
 <script src="./firebase-config.js"></script>
-<script type="module" src="./app.js?v=20261025-local-search"></script>
+<script type="module" src="./app.js?v=20261025-collection-tabs"></script>
 <script>
 setTimeout(function() {
   var app = document.getElementById('app');
