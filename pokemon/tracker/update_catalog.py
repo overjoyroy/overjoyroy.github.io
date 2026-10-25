@@ -245,6 +245,31 @@ def write_metadata():
     })
 
 
+def write_search_index():
+    """Build the compact browser index used for name/number searches."""
+    cards_by_id = {}
+    for filename in sorted(os.listdir(CARDS)):
+        if not filename.endswith(".json"):
+            continue
+        for card in json.load(open(os.path.join(CARDS, filename), encoding="utf-8")):
+            set_id = card.get("set", {}).get("id")
+            if not card.get("id") or not set_id:
+                continue
+            searchable = " ".join(str(value) for value in (
+                card.get("name", ""), card.get("number", ""), card.get("id", ""),
+                card.get("set", {}).get("name", ""),
+                card.get("language", ""), card.get("searchTerms", ""),
+            ) if value).lower()
+            cards_by_id[card["id"]] = {
+                "id": card["id"], "setId": set_id, "search": searchable,
+            }
+    write_json(os.path.join(DATA, "card-search-index.json"), {
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "cards": list(cards_by_id.values()),
+    })
+    print(f"Wrote local search index for {len(cards_by_id)} cards")
+
+
 def main():
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
@@ -257,6 +282,7 @@ def main():
     if not args.catalog_only:
         refresh_prices(args.workers)
     write_metadata()
+    write_search_index()
 
 
 if __name__ == "__main__":

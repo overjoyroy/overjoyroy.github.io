@@ -58,6 +58,7 @@ let wlUnsub        = null;
 
 let allSets        = null;
 let cameoIndex     = null;
+let cardSearchIndex = null;
 let cardDataMap    = {};     // { cardId: apiCardObject } for modal lookups
 
 let activeTab      = 'search';
@@ -551,33 +552,31 @@ async function fetchSetCards(setId) {
   return cards;
 }
 
-async function searchCards(queryStr) {
-  const key = `search_v3_${queryStr.toLowerCase().replace(/\W+/g, '_')}`;
-  const hit = await cacheGet(key);
-  if (hit) return hit;
-  const data = await tcgFetch(
-    `${TCG_API}/cards?q=${encodeURIComponent(queryStr)}&pageSize=50&orderBy=set.releaseDate` +
-    `&select=id,name,number,set,images,tcgplayer`
-  );
-  const cards = data.data || [];
-  await cacheSet(key, cards);
-  return cards;
+async function loadCardSearchIndex() {
+  if (!cardSearchIndex) {
+    const response = await fetch('./data/card-search-index.json?v=20261025', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Local card search index is unavailable.');
+    cardSearchIndex = await response.json();
+  }
+  return cardSearchIndex;
 }
 
-async function searchCustomCards(nameQuery, setId = null) {
-  const sets = await fetchAllSets();
-  const customSets = sets.filter(s => s.custom && (!setId || s.id === setId));
-  const query = (nameQuery || '').toLowerCase();
-  const results = [];
-  for (const set of customSets) {
-    const cards = await fetchSetCards(set.id);
-    results.push(...cards.filter(card => {
-      if (!query) return true;
-      const haystack = `${card.name} ${card.number} ${card.language || ''} ${card.searchTerms || ''}`.toLowerCase();
-      return haystack.includes(query);
-    }));
-  }
-  return results;
+async function searchLocalCards(nameQuery, setId = null) {
+  const index = await loadCardSearchIndex();
+  const needle = String(nameQuery || '').trim().toLowerCase();
+  const matches = index.cards.filter(entry =>
+    (!setId || entry.setId === setId) && (!needle || entry.search.includes(needle))
+  );
+  const bySet = {};
+  for (const entry of matches) (bySet[entry.setId] ||= []).push(entry.id);
+  const cardsById = new Map();
+  await Promise.all(Object.entries(bySet).map(async ([matchedSetId, ids]) => {
+    const wanted = new Set(ids);
+    for (const card of await fetchSetCards(matchedSetId)) {
+      if (wanted.has(card.id)) cardsById.set(card.id, card);
+    }
+  }));
+  return matches.map(entry => cardsById.get(entry.id)).filter(Boolean);
 }
 
 function cameoKey(value) {
@@ -994,19 +993,10 @@ async function runFilteredSearch() {
     let cards;
     const setFilter = activeFilters.find(f => f.type === 'set');
     const nameFilter = activeFilters.find(f => f.type === 'name');
-    const sets = await fetchAllSets();
-    const customSetIds = new Set(sets.filter(s => s.custom).map(s => s.id));
     if (setFilter && activeFilters.length === 1) {
       cards = await fetchSetCards(setFilter.value);
-    } else if (setFilter && customSetIds.has(setFilter.value)) {
-      cards = await searchCustomCards(nameFilter?.value, setFilter.value);
     } else {
-      cards = await searchCards(queryStr);
-      if (!setFilter && nameFilter) {
-        const customCards = await searchCustomCards(nameFilter.value);
-        const seen = new Set(cards.map(card => card.id));
-        cards.push(...customCards.filter(card => !seen.has(card.id)));
-      }
+      cards = await searchLocalCards(nameFilter?.value || '', setFilter?.value || null);
     }
     if (nameFilter && document.getElementById('include-cameos')?.checked) {
       const cameos = await fetchCameoCards(nameFilter.value, setFilter?.value || null);
@@ -1842,7 +1832,7 @@ window.viewProfileMissing = async function(uid) {
         for (const [k, v] of Object.entries(wlData)) {
           if (k.startsWith('_')) continue;
           if (v.displayName) {
-            try { allCards.push(...await searchCards(`name:*${v.displayName}*`)); } catch (_) {}
+            try { allCards.push(...await searchLocalCards(v.displayName)); } catch (_) {}
           }
         }
       } else {
@@ -1914,7 +1904,7 @@ async function loadProfileListCards(listId, wlData, coll) {
       for (const [, info] of entries) {
         if (info.displayName) {
           try {
-            const cards = await searchCards(`name:*${info.displayName}*`);
+            const cards = await searchLocalCards(info.displayName);
             allCards.push(...cards);
           } catch (_) {}
         }
