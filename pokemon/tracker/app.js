@@ -757,8 +757,11 @@ window.toggleCardSelect = function(cardId) {
 
 window.selectAllInList = function() {
   if (!viewingListId) return;
-  enterSelectMode(viewingListId, 'list');
+  if (!selectMode || selectionContext !== 'list' || addingToList !== viewingListId) {
+    enterSelectMode(viewingListId, 'list');
+  }
   document.querySelectorAll('#lists-content .card-tile').forEach(tile => {
+    if (tile.style.display === 'none') return;
     const id = tile.dataset.id;
     if (id && !selectedCards.has(id)) {
       selectedCards.add(id);
@@ -766,6 +769,17 @@ window.selectAllInList = function() {
     }
   });
   updateActionBar();
+};
+
+window.toggleListBulkMode = function(listId) {
+  if (isGuest || !listId) return;
+  if (selectMode && selectionContext === 'list' && addingToList === listId) {
+    exitSelectMode();
+    openList(listId, true);
+    return;
+  }
+  enterSelectMode(listId, 'list');
+  openList(listId, true);
 };
 
 window.selectAllVisible = function() {
@@ -805,6 +819,7 @@ function updateActionBar() {
   } else if (selectionContext === 'list') {
     btns.innerHTML = `<button class="action-bar-owned" onclick="markSelectedOwned()">Mark Owned</button>
   <button class="action-bar-unowned" onclick="markSelectedNotOwned()">Mark Not Owned</button>
+  <button class="action-bar-add" id="action-bar-add-btn" onclick="showActionListPicker()">Edit Lists ▾</button>
   <button class="action-bar-remove" onclick="removeSelectedFromList()">Remove from List</button>
   <button class="action-bar-cancel" onclick="cancelSelection()">Cancel</button>`;
   } else {
@@ -896,7 +911,7 @@ window.showActionListPicker = function() {
   const picker = document.getElementById('action-list-picker');
   if (!picker.classList.contains('hidden')) { picker.classList.add('hidden'); return; }
 
-  if (addingToList) {
+  if (addingToList && selectionContext !== 'list') {
     commitSelection(addingToList);
     return;
   }
@@ -979,7 +994,9 @@ window.saveBulkListMembership = async function() {
   }
   document.getElementById('action-list-picker').classList.add('hidden');
   showToast(additions || removals ? `Updated lists: ${additions} added, ${removals} removed` : 'No list changes');
+  const wasListId = selectionContext === 'list' ? viewingListId : null;
   exitSelectMode();
+  if (wasListId) openList(wasListId);
 };
 
 window.closeListPicker = function() {
@@ -1238,6 +1255,7 @@ async function runFilteredSearch() {
 // ─────────────────────────────────────────────────────────────────
 
 window.renderLists = async function renderLists() {
+  if (selectMode) exitSelectMode();
   viewingListId = null;
   viewingCollection = false;
   const el = document.getElementById('lists-content');
@@ -1289,7 +1307,8 @@ window.renderLists = async function renderLists() {
   el.innerHTML = html;
 }
 
-window.openList = async function(listId) {
+window.openList = async function(listId, preserveSelectionMode = false) {
+  if (!preserveSelectionMode && selectMode) exitSelectMode();
   viewingListId = listId === '__all__' ? null : listId;
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   const el = document.getElementById('lists-content');
@@ -1321,10 +1340,11 @@ window.openList = async function(listId) {
   } catch (_) {}
 
   const nOwned = cards.filter(c => collection[c.id]).length;
-  const tiles = cards.map(c => cardTile(c, { showSet: true })).join('');
+  const listBulkMode = !isAll && selectMode && selectionContext === 'list' && addingToList === listId;
+  const tiles = cards.map(c => cardTile(c, { showSet: true, selectable: listBulkMode })).join('');
 
   const menuBtns = isAll ? '' : `<button class="add-cards-btn" onclick="addCardsToList('${esc(listId)}')">+ Add cards</button>
-  <button class="list-action-btn" onclick="selectAllInList()">Select All</button>
+  <button class="list-action-btn${listBulkMode ? ' active' : ''}" onclick="toggleListBulkMode('${esc(listId)}')">${listBulkMode ? 'Exit bulk edit' : 'Bulk edit'}</button>
   <button class="list-action-btn" onclick="renameList('${esc(listId)}')">Rename</button>
   <button class="list-action-btn" onclick="shareList('${esc(listId)}')">Share</button>
   <button class="list-action-btn list-action-delete" onclick="deleteList('${esc(listId)}')">Delete</button>`;
@@ -1339,6 +1359,7 @@ window.openList = async function(listId) {
   <button class="card-filter-btn active" onclick="applyCardFilter('all', this)">All</button>
   <button class="card-filter-btn" onclick="applyCardFilter('missing', this)">Missing Only</button>
   <button class="card-filter-btn" onclick="applyCardFilter('owned', this)">Owned Only</button>
+  ${listBulkMode ? `<button class="card-filter-btn list-select-all-btn" onclick="selectAllInList()">Select all shown</button>` : ''}
 </div>
 <div class="card-grid" id="filtered-card-grid">${tiles || '<p class="list-empty">No cards in this list yet.</p>'}</div>`;
 };
