@@ -85,6 +85,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .card-set-badge{font-size:.58rem;color:#ccc;line-height:1.3}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(126px,1fr));gap:10px;padding:12px 0}
 
+/* ── Sets tab ── */
+.sets-panel{padding:16px;max-width:1100px;margin:0 auto}
+.sets-page-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.sets-page-header h2{font-size:1.05rem}
+.sets-page-header p{font-size:.76rem;color:#999;margin-top:3px}
+.sets-filter{width:min(320px,100%);padding:8px 12px;border:1px solid #ddd;border-radius:16px;font-size:.8rem;outline:none}
+.sets-filter:focus{border-color:#999}
+.sets-year{margin:20px 0 8px;font-size:.85rem;color:#777;border-bottom:1px solid #e8e8ec;padding-bottom:5px}
+.sets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.set-card{background:#fff;border-radius:10px;box-shadow:var(--shadow);padding:12px;text-decoration:none;color:var(--dark);display:flex;align-items:center;gap:10px;min-height:78px;transition:box-shadow .15s,transform .15s}
+.set-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.15);transform:translateY(-1px)}
+.set-card-logo{width:56px;height:48px;object-fit:contain;flex-shrink:0}
+.set-card-placeholder{width:56px;height:48px;border-radius:7px;background:#f0f0f4;color:#aaa;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0}
+.set-card-name{font-size:.78rem;font-weight:700;line-height:1.25}
+.set-card-meta{font-size:.67rem;color:#aaa;margin-top:4px}
+.set-detail-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.set-detail-title h2{font-size:1rem}
+.set-detail-title p{font-size:.74rem;color:#999;margin-top:2px}
+.set-back-btn{border:0;background:#eeeef3;color:#555;border-radius:12px;padding:6px 11px;cursor:pointer;font-size:.74rem}
+.set-back-btn:hover{background:#dedee6}
+
 
 /* ── My Lists tab ── */
 .lists-header{padding:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -298,6 +319,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="tab-bar">
       <button class="tab-btn" data-tab="home">Home</button>
       <button class="tab-btn" data-tab="search">Search</button>
+      <button class="tab-btn" data-tab="sets">Sets</button>
       <button class="tab-btn" data-tab="lists">My Lists</button>
       <button class="tab-btn" data-tab="community">Community</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
@@ -340,6 +362,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
           <p id="price-data-updated"><strong>Dataset refreshed:</strong> checking…</p>
         </div>
       </details>
+    </div>
+  </div>
+
+  <!-- SETS -->
+  <div id="tab-sets" class="tab-panel hidden">
+    <div class="sets-panel" id="sets-content">
+      <div class="loading"><div class="spinner"></div>Loading sets…</div>
     </div>
   </div>
 

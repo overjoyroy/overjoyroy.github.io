@@ -1431,15 +1431,89 @@ function showToast(msg) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// SETS CATALOG
+// ─────────────────────────────────────────────────────────────────
+
+function releaseYear(set) {
+  return String(set.releaseDate || '').slice(0, 4) || 'Unknown year';
+}
+
+window.filterSetsPage = function(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('#sets-content .set-card').forEach(card => {
+    card.classList.toggle('hidden', q && !card.dataset.search.includes(q));
+  });
+  document.querySelectorAll('#sets-content .sets-year-group').forEach(group => {
+    group.classList.toggle('hidden', !group.querySelector('.set-card:not(.hidden)'));
+  });
+};
+
+async function renderSetsPage() {
+  const el = document.getElementById('sets-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading sets…</div>';
+  try {
+    const sets = [...await fetchAllSets()].sort((a, b) =>
+      String(b.releaseDate || '').localeCompare(String(a.releaseDate || '')) || a.name.localeCompare(b.name)
+    );
+    const byYear = {};
+    for (const set of sets) (byYear[releaseYear(set)] ||= []).push(set);
+    el.innerHTML = `<div class="sets-page-header">
+      <div><h2>Sets</h2><p>${sets.length} sets · newest first</p></div>
+      <input class="sets-filter" type="search" placeholder="Filter by set, series, or year…" oninput="filterSetsPage(this.value)">
+    </div>` + Object.entries(byYear).map(([year, yearSets]) => `
+      <section class="sets-year-group">
+        <h3 class="sets-year">${esc(year)} <span class="era-count">(${yearSets.length})</span></h3>
+        <div class="sets-grid">
+          ${yearSets.map(set => {
+            const logo = set.images?.logo || set.images?.symbol;
+            const visual = logo
+              ? `<img class="set-card-logo" src="${esc(logo)}" alt="" loading="lazy">`
+              : `<div class="set-card-placeholder">${esc(set.id.toUpperCase())}</div>`;
+            return `<a class="set-card" href="#/sets/${encodeURIComponent(set.id)}" data-search="${esc(`${set.name} ${set.series || ''} ${year}`.toLowerCase())}">
+              ${visual}<div><div class="set-card-name">${esc(set.name)}</div>
+              <div class="set-card-meta">${esc(year)} · ${Number(set.total || 0).toLocaleString()} cards</div></div>
+            </a>`;
+          }).join('')}
+        </div>
+      </section>`).join('');
+  } catch (error) {
+    el.innerHTML = `<div class="search-empty"><h3>Sets unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+async function renderSetDetail(setId) {
+  const el = document.getElementById('sets-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cards…</div>';
+  try {
+    const sets = await fetchAllSets();
+    const set = sets.find(item => item.id === setId);
+    if (!set) throw new Error('This set was not found.');
+    const cards = await fetchSetCards(setId);
+    const year = releaseYear(set);
+    el.innerHTML = `<div class="set-detail-header">
+      <button class="set-back-btn" onclick="location.hash='#/sets'">← All sets</button>
+      <div class="set-detail-title"><h2>${esc(set.name)}</h2>
+      <p>${esc(set.series || '')} · ${esc(year)} · ${cards.length.toLocaleString()} cards</p></div>
+    </div>
+    <div class="card-grid">${cards.map(card => cardTile(card, { readonly: true })).join('')}</div>`;
+  } catch (error) {
+    el.innerHTML = `<button class="set-back-btn" onclick="location.hash='#/sets'">← All sets</button>
+      <div class="search-empty"><h3>Set unavailable</h3><p>${esc(error.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // PROFILE VIEW + ROUTING
 // ─────────────────────────────────────────────────────────────────
 
-const VALID_TABS = ['search', 'lists', 'community', 'settings'];
+const VALID_TABS = ['search', 'sets', 'lists', 'community', 'settings'];
 
 function parseRoute() {
   const hash = location.hash.slice(1);
   const profileMatch = hash.match(/^\/profile\/([^/]+)(?:\/(.+))?$/);
   if (profileMatch) return { type: 'profile', uid: profileMatch[1], listId: profileMatch[2] || null };
+  const setMatch = hash.match(/^\/sets\/([^/]+)$/);
+  if (setMatch) return { type: 'set', setId: decodeURIComponent(setMatch[1]) };
   const tabMatch = hash.match(/^\/(\w+)$/);
   if (tabMatch && VALID_TABS.includes(tabMatch[1])) return { type: 'tab', tab: tabMatch[1] };
   if (hash === '/welcome' || hash === '/home' || hash === '/' || hash === '') return { type: 'home' };
@@ -1450,6 +1524,10 @@ function handleRoute() {
   activeRoute = parseRoute();
   if (activeRoute.type === 'profile') {
     showProfileView(activeRoute.uid, activeRoute.listId);
+  } else if (activeRoute.type === 'set') {
+    hideProfileView();
+    switchTab('sets', true);
+    renderSetDetail(activeRoute.setId);
   } else if (activeRoute.type === 'tab') {
     hideProfileView();
     switchTab(activeRoute.tab, true);
@@ -1823,6 +1901,7 @@ window.switchTab = async function switchTab(tab, fromRouter) {
   document.getElementById(`tab-${tab}`).classList.remove('hidden');
   document.querySelector('.tab-bar')?.classList.remove('hidden');
   if (tab === 'lists') await renderLists();
+  if (tab === 'sets' && activeRoute?.type !== 'set') await renderSetsPage();
   if (tab === 'community') await renderCommunity();
   if (tab === 'settings') await loadSettings();
   if (tab === 'search' && addingToList) {
