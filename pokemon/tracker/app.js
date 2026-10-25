@@ -1140,6 +1140,22 @@ window.openList = async function(listId) {
 };
 
 async function resolveUnorganizedCards(cardIds) {
+  const resolved = new Map(cardIds.map(cardId => [cardId, cardDataMap[cardId]]).filter(([, card]) => card));
+  try {
+    const searchIndex = await loadCardSearchIndex();
+    const wanted = new Set(cardIds.filter(cardId => !resolved.has(cardId)));
+    const bySet = {};
+    for (const entry of searchIndex.cards) {
+      if (wanted.has(entry.id)) (bySet[entry.setId] ||= []).push(entry.id);
+    }
+    await Promise.all(Object.entries(bySet).map(async ([setId, ids]) => {
+      const idSet = new Set(ids);
+      for (const card of await fetchSetCards(setId)) {
+        if (idSet.has(card.id)) resolved.set(card.id, card);
+      }
+    }));
+  } catch (_) {}
+
   const cameoCards = new Map();
   try {
     const index = await loadCameoIndex();
@@ -1147,7 +1163,7 @@ async function resolveUnorganizedCards(cardIds) {
       for (const card of group.unmatched || []) cameoCards.set(card.id, card);
     }
   } catch (_) {}
-  return cardIds.map(cardId => cardDataMap[cardId] || cameoCards.get(cardId) || {
+  return cardIds.map(cardId => resolved.get(cardId) || cameoCards.get(cardId) || {
     id: cardId,
     name: cardId,
     number: 'Unresolved',
@@ -1807,19 +1823,8 @@ async function renderProfile(uid, filterListId) {
         <span>${cardsOwned} card${cardsOwned !== 1 ? 's' : ''} owned</span>
       </div>`;
 
-    const { bySet, unorganizedIds } = await classifyOwnedCards(ownedIds);
     const profileMode = filterListId === 'collection' ? 'collection'
       : filterListId === 'unorganized' ? 'unorganized' : 'lists';
-    profileCollectionData = { uid, coll, bySet, unorganizedIds };
-    tabsEl.innerHTML = `
-      <a class="profile-section-tab${profileMode === 'lists' ? ' active' : ''}" href="#/profile/${esc(uid)}">Lists</a>
-      <a class="profile-section-tab${profileMode === 'collection' ? ' active' : ''}" href="#/profile/${esc(uid)}/collection">All Cards (${cardsOwned})</a>
-      <a class="profile-section-tab${profileMode === 'unorganized' ? ' active' : ''}" href="#/profile/${esc(uid)}/unorganized">Unorganized (${unorganizedIds.length})</a>`;
-
-    if (profileMode !== 'lists') {
-      await renderProfileCollection(profileMode);
-      return;
-    }
 
     // Handle both v2 and v3 wantlist formats
     let lists, listArr;
@@ -1833,6 +1838,18 @@ async function renderProfile(uid, filterListId) {
     } else {
       lists = {};
       listArr = [];
+    }
+
+    const { groups, unorganizedCards } = await resolveProfileOwnedGroups(wlData, listArr, coll);
+    profileCollectionData = { uid, coll, groups, unorganizedCards };
+    tabsEl.innerHTML = `
+      <a class="profile-section-tab${profileMode === 'lists' ? ' active' : ''}" href="#/profile/${esc(uid)}">Lists</a>
+      <a class="profile-section-tab${profileMode === 'collection' ? ' active' : ''}" href="#/profile/${esc(uid)}/collection">All Cards (${cardsOwned})</a>
+      <a class="profile-section-tab${profileMode === 'unorganized' ? ' active' : ''}" href="#/profile/${esc(uid)}/unorganized">Unorganized (${unorganizedCards.length})</a>`;
+
+    if (profileMode !== 'lists') {
+      renderProfileCollection(profileMode);
+      return;
     }
 
     if (!listArr.length) {
@@ -1891,16 +1908,61 @@ async function renderProfile(uid, filterListId) {
   }
 }
 
-async function renderProfileCollection(mode) {
+async function resolveProfileOwnedGroups(wlData, listArr, coll) {
+  const groups = [];
+  const organizedIds = new Set();
+
+  for (const [listId, listInfo] of listArr) {
+    let cards = [];
+    if (listId === '_legacy') {
+      for (const [key, item] of Object.entries(wlData)) {
+        if (key.startsWith('_') || !item.displayName) continue;
+        try { cards.push(...await searchLocalCards(item.displayName)); } catch (_) {}
+      }
+    } else {
+      const items = Object.values(wlData).filter(item => item && item.list === listId);
+      const setIds = [...new Set(items.map(item => item.setId).filter(Boolean))];
+      const cardsBySet = {};
+      await Promise.all(setIds.map(async setId => {
+        try { cardsBySet[setId] = await fetchSetCards(setId); }
+        catch (_) { cardsBySet[setId] = []; }
+      }));
+      for (const item of items) {
+        const setCards = cardsBySet[item.setId] || [];
+        if (item.type === 'set') cards.push(...setCards);
+        else if (item.type === 'card') {
+          const card = setCards.find(candidate => candidate.id === item.cardId);
+          if (card) cards.push(card);
+        }
+      }
+    }
+
+    const seen = new Set();
+    cards = cards.filter(card => {
+      if (seen.has(card.id)) return false;
+      seen.add(card.id);
+      organizedIds.add(card.id);
+      return !!coll[card.id];
+    });
+    cards.sort((a, b) => (a.set?.releaseDate || '').localeCompare(b.set?.releaseDate || '')
+      || (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
+    groups.push({ listId, name: listInfo.name, cards });
+  }
+
+  const unorganizedIds = Object.keys(coll).filter(cardId => !organizedIds.has(cardId));
+  const unorganizedCards = await resolveUnorganizedCards(unorganizedIds);
+  return { groups, unorganizedCards };
+}
+
+function renderProfileCollection(mode) {
   const listsEl = document.getElementById('profile-wishlists');
   const data = profileCollectionData;
   if (!data) return;
 
-  const { coll, bySet, unorganizedIds } = data;
+  const { coll, groups, unorganizedCards } = data;
   if (mode === 'unorganized') {
-    const cards = await resolveUnorganizedCards(unorganizedIds);
-    listsEl.innerHTML = `<p class="unorganized-help">These owned cards could not be matched to a current catalog set. This can include legacy imports and cameo-only records.</p>
-      <div class="card-grid" style="padding:12px 16px">${cards.map(card => cardTile(card, { readonly: true, showSet: true, collectionOverride: coll })).join('') || '<p class="list-empty">Every owned card is organized into a catalog set.</p>'}</div>`;
+    listsEl.innerHTML = `<p class="unorganized-help">These are owned cards that have not been placed in any of this user’s lists.</p>
+      <div class="card-grid" style="padding:12px 16px">${unorganizedCards.map(card => cardTile(card, { readonly: true, showSet: true, collectionOverride: coll })).join('') || '<p class="list-empty">Every owned card is organized into a user list.</p>'}</div>`;
     return;
   }
 
@@ -1909,57 +1971,40 @@ async function renderProfileCollection(mode) {
     return;
   }
 
-  listsEl.innerHTML = '<div class="loading"><div class="spinner"></div>Loading collection…</div>';
-  const sets = await fetchAllSets();
-  if (profileCollectionData !== data) return;
-  const setMeta = Object.fromEntries(sets.map(set => [set.id, set]));
-  const sortedSetIds = Object.keys(bySet).sort((a, b) => {
-    const dateCmp = (setMeta[b]?.releaseDate || '').localeCompare(setMeta[a]?.releaseDate || '');
-    return dateCmp || (setMeta[a]?.name || a).localeCompare(setMeta[b]?.name || b);
+  let html = '';
+  groups.forEach((group, index) => {
+    if (!group.cards.length) return;
+    html += `<div class="list-section collapsed">
+      <div class="list-header" onclick="toggleProfileCollectionList(this, ${index})">
+        <div class="list-header-left"><span class="toggle-icon">▾</span><span class="list-name">${esc(group.name)}</span></div>
+        <span class="list-progress">${group.cards.length} owned</span>
+      </div>
+      <div class="list-body"><div class="card-grid" data-profile-list-grid="${index}"></div></div>
+    </div>`;
   });
 
-  let html = '';
-  for (const setId of sortedSetIds) {
-    const setName = setMeta[setId]?.name || setId;
-    html += `<div class="list-section collapsed" data-profile-collection-set="${esc(setId)}">
-      <div class="list-header" onclick="toggleProfileCollectionSet(this, '${esc(setId)}')">
-        <div class="list-header-left"><span class="toggle-icon">▾</span><span class="list-name">${esc(setName)}</span></div>
-        <span class="list-progress">${bySet[setId].length} owned</span>
-      </div>
-      <div class="list-body"><div class="card-grid" id="profile-collection-set-${esc(setId)}">
-        <div class="loading" style="grid-column:1/-1"><div class="spinner"></div></div>
-      </div></div>
-    </div>`;
-  }
-
-  if (unorganizedIds.length) {
+  if (unorganizedCards.length) {
     html += `<div class="list-section collapsed">
       <div class="list-header" onclick="location.hash='#/profile/${esc(data.uid)}/unorganized'">
         <div class="list-header-left"><span class="toggle-icon">→</span><span class="list-name">Unorganized</span></div>
-        <span class="list-progress">${unorganizedIds.length} owned</span>
+        <span class="list-progress">${unorganizedCards.length} owned</span>
       </div>
     </div>`;
   }
-  listsEl.innerHTML = html;
+  listsEl.innerHTML = html || '<div class="wantlist-empty"><p>This user has no lists. Their cards are available under Unorganized.</p></div>';
 }
 
-window.toggleProfileCollectionSet = async function(header, setId) {
+window.toggleProfileCollectionList = function(header, index) {
   const section = header.closest('.list-section');
   section.classList.toggle('collapsed');
-  const grid = document.getElementById(`profile-collection-set-${setId}`);
+  const grid = section.querySelector('[data-profile-list-grid]');
   const data = profileCollectionData;
   if (section.classList.contains('collapsed') || !grid || grid.dataset.loaded || !data) return;
 
   grid.dataset.loaded = 'true';
-  try {
-    const ownedInSet = new Set(data.bySet[setId] || []);
-    const cards = (await fetchSetCards(setId)).filter(card => ownedInSet.has(card.id));
-    cards.sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
-    grid.innerHTML = cards.map(card => cardTile(card, { readonly: true, showSet: false, collectionOverride: data.coll })).join('')
-      || '<p class="list-empty">No cards found for this set.</p>';
-  } catch (error) {
-    grid.innerHTML = `<p class="list-empty">Could not load this set: ${esc(error.message)}</p>`;
-  }
+  const cards = data.groups[index]?.cards || [];
+  grid.innerHTML = cards.map(card => cardTile(card, { readonly: true, showSet: true, collectionOverride: data.coll })).join('')
+    || '<p class="list-empty">No owned cards in this list.</p>';
 };
 
 window.viewProfileMissing = async function(uid) {
